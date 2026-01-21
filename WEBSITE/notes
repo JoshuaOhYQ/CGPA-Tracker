@@ -1,0 +1,5 @@
+Variable:
+declaration-    let x;
+assignment-     x = 100;  
+print-          console.log(`${x}`);
+print type-     console.log(typeof x);
