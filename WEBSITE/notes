@@ -45,3 +45,28 @@ Boolean-  x = Boolean(1);
 Constants:
 Declaration-    const PI = 3.14159;
 
+Math Objects:
+Math.PI-        PI value
+Math.E-         Euler's number
+Math.round()-   round to whole Number
+Math.floor()-   rounds down to whole Number
+Math.ceil()-    rounds up to whole Number
+Math.trunc()-   remove any decimal portions
+Math.pow()-     raise to the power of
+Math.sqrt()-    square root
+Math.log()-     natural logarithm 
+Math.sin()-     Trigo (sin)
+Math.cos()-     Trigo (cosine)
+Math.tan()-     Trigo (tan)
+Math.abs()-     eliminates negative sign (modulus)
+Math.sign()-    give the sign of the number
+Math.max()-     give the maximum value between several variables
+Math.min()-     give the minimum value between several variables
+Math.random()-  give a random number between 0 and 1
+
+
+
+
+
+
+
