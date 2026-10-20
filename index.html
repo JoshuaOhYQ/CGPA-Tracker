@@ -1,0 +1,1553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CGPA Tracker</title>
+<meta name="description" content="A loud, simple CGPA tracker: semesters, subjects, what-if planning and charts. Everything stays in your browser.">
+<meta name="theme-color" content="#FFD23F">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='6' width='52' height='52' rx='8' fill='%23111'/%3E%3Crect x='2' y='2' width='52' height='52' rx='8' fill='%23FFD23F' stroke='%23111' stroke-width='4'/%3E%3Ctext x='28' y='40' font-family='Arial Black,Arial' font-weight='900' font-size='24' text-anchor='middle' fill='%23111'%3E4.0%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<script>
+  // Set the theme before first paint so dark mode never flashes light.
+  try {
+    var saved = JSON.parse(localStorage.getItem('cgpa-tracker:v1') || '{}');
+    var t = saved.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+<style>
+/* ============================================================
+   DESIGN TOKENS — change colours here (see README / notes)
+   ============================================================ */
+:root {
+  --bg: #FFF4D6;          /* page paper */
+  --dot: rgba(17,17,17,.13);
+  --surface: #FFFFFF;     /* cards */
+  --surface-2: #FFF9E8;   /* focused inputs, table stripes */
+  --text: #111111;
+  --muted: #3E3A31;
+  --ink: #111111;         /* borders */
+  --shadow: #111111;      /* hard offset shadows */
+  --yellow: #FFD23F;
+  --pink: #FF8AC0;
+  --mint: #7DECC0;
+  --on-accent: #111111;   /* text on yellow / pink / mint */
+  --series-1: #E0306A;    /* chart: semester GPA */
+  --series-2: #2F5BEA;    /* chart: cumulative CGPA */
+  --grid: rgba(17,17,17,.12);
+  --focus: #2F5BEA;
+  --danger: #E0306A;
+
+  --bw: 3px;              /* border weight */
+  --sh: 6px;              /* shadow offset */
+  --r: 12px;
+  --r-sm: 8px;
+  --font-display: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif;
+  --font-body: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, 'Cascadia Mono', monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16140F; --dot: rgba(255,244,214,.09); --surface: #221F19; --surface-2: #2C2820;
+    --text: #FFF4D6; --muted: #D3CAB2; --ink: #FFF4D6; --shadow: #FFF4D6;
+    --yellow: #F7C93A; --pink: #FF8FC0; --mint: #6FE0B4;
+    --series-1: #F0508A; --series-2: #5B82FF; --grid: rgba(255,244,214,.14); --focus: #8FA8FF; --danger: #FF6B9A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16140F; --dot: rgba(255,244,214,.09); --surface: #221F19; --surface-2: #2C2820;
+  --text: #FFF4D6; --muted: #D3CAB2; --ink: #FFF4D6; --shadow: #FFF4D6;
+  --yellow: #F7C93A; --pink: #FF8FC0; --mint: #6FE0B4;
+  --series-1: #F0508A; --series-2: #5B82FF; --grid: rgba(255,244,214,.14); --focus: #8FA8FF; --danger: #FF6B9A;
+  color-scheme: dark;
+}
+/* Anything sitting on a bright accent fill always uses black ink, in both themes. */
+.accent, .sticker, .tag, .ch-num, .need, .t-a, .t-b, .t-c {
+  --text: #111111; --muted: #2A2722; --ink: #111111; --shadow: #111111;
+  --surface: #FFFDF5; --surface-2: #FFFFFF; --focus: #1D3FCC; --danger: #B0154A;
+  color: var(--text);
+}
+
+/* ============================================================ BASE */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.3px);
+  background-size: 22px 22px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+h1, h2, h3 { font-family: var(--font-display); line-height: 1; margin: 0; letter-spacing: -0.02em; }
+p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.sr { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip { position: absolute; left: 16px; top: -100px; z-index: 50; }
+.skip:focus { top: 12px; }
+[hidden] { display: none !important; }
+
+.wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+
+/* ============================================================ PRIMITIVES */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  min-height: 44px; padding: .55rem 1rem;
+  border: var(--bw) solid var(--ink); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--text);
+  box-shadow: 4px 4px 0 var(--shadow);
+  font-weight: 700; text-decoration: none; white-space: nowrap;
+  transition: transform .12s ease, box-shadow .12s ease, background-color .2s;
+}
+.btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--shadow); }
+.btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--shadow); }
+.btn.yellow { background: var(--yellow); color: var(--on-accent); }
+.btn.pink { background: var(--pink); color: var(--on-accent); }
+.btn.mint { background: var(--mint); color: var(--on-accent); }
+.btn.yellow, .btn.pink, .btn.mint { --ink: #111; border-color: var(--ink); }
+.btn.sm { min-height: 36px; padding: .3rem .7rem; font-size: .9rem; box-shadow: 3px 3px 0 var(--shadow); }
+.btn.ghost { box-shadow: none; background: transparent; }
+.btn.ghost:hover { box-shadow: 3px 3px 0 var(--shadow); }
+.btn.danger { color: var(--danger); }
+.icon-btn {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; flex: none;
+  border: 2px solid transparent; border-radius: var(--r-sm); background: transparent;
+  font-size: 1.1rem; font-weight: 700; color: var(--muted);
+  transition: background-color .15s, border-color .15s, color .15s, transform .12s;
+}
+.icon-btn:hover { border-color: var(--ink); color: var(--danger); background: var(--surface-2); transform: rotate(-6deg); }
+
+.tag {
+  display: inline-block; padding: .2rem .55rem;
+  border: 2px solid var(--ink); border-radius: 999px;
+  background: var(--surface); font-family: var(--font-mono); font-size: .72rem;
+  text-transform: uppercase; letter-spacing: .06em; line-height: 1.3;
+}
+.tag.pink { background: var(--pink); }
+.tag.mint { background: var(--mint); }
+.tag.yellow { background: var(--yellow); }
+
+.panel {
+  background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r);
+  box-shadow: var(--sh) var(--sh) 0 var(--shadow);
+}
+
+.field { display: grid; gap: .3rem; }
+.field label, .label { font-family: var(--font-mono); font-size: .75rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.input {
+  min-height: 44px; width: 100%; padding: .5rem .75rem;
+  border: var(--bw) solid var(--ink); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.input:focus { background: var(--surface-2); }
+.input[readonly] { border-style: dashed; }
+.input[aria-invalid="true"] { border-color: var(--danger); animation: shake .32s; }
+
+/* select wrapper with chevron in currentColor */
+.sel { position: relative; display: block; border-radius: var(--r-sm); }
+.sel select {
+  appearance: none; -webkit-appearance: none; width: 100%; min-height: 44px;
+  padding: .45rem 2rem .45rem .7rem; border: var(--bw) solid var(--ink); border-radius: var(--r-sm);
+  background: transparent; color: inherit; font-weight: 700; cursor: pointer;
+}
+.sel::after {
+  content: ''; position: absolute; right: .8rem; top: 50%; width: .45rem; height: .45rem;
+  border: solid currentColor; border-width: 0 2.5px 2.5px 0; transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.sel option { background: var(--surface); color: var(--text); }
+.t-a { background: var(--mint); }
+.t-b { background: var(--yellow); }
+.t-c { background: var(--pink); }
+.t-d { background: var(--surface); }
+.t-none select { border-style: dashed; font-weight: 500; color: var(--muted); }
+
+/* ============================================================ HEADER + TICKER */
+.top { padding: 18px 0 14px; }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.logo { display: flex; align-items: center; gap: .6rem; text-decoration: none; color: var(--text); }
+.logo-mark {
+  display: grid; place-items: center; padding: .35rem .6rem; background: var(--ink); color: var(--bg);
+  font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; border-radius: 6px; transform: rotate(-3deg);
+}
+.logo-word { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; letter-spacing: -0.02em; }
+.tools { display: flex; gap: 10px; flex-wrap: wrap; }
+.theme-btn .sun { display: none; }
+[data-theme="dark"] .theme-btn .sun { display: inline; }
+[data-theme="dark"] .theme-btn .moon { display: none; }
+
+.ticker {
+  border-block: var(--bw) solid var(--ink); background: #111111; color: #FFF4D6;
+  overflow: hidden; white-space: nowrap; font-family: var(--font-mono); font-size: .85rem;
+  padding: .4rem 0; margin-bottom: 28px;
+}
+.ticker-track { display: inline-block; animation: tick 40s linear infinite; padding-left: 1rem; }
+.ticker-track span { margin-right: 1.4rem; }
+.ticker-track b { color: #FFD23F; }
+@keyframes tick { to { transform: translateX(-50%); } }
+
+/* ============================================================ HERO */
+.hero {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 28px;
+  padding: clamp(20px, 4vw, 40px); background: var(--yellow);
+  border: var(--bw) solid var(--ink); border-radius: var(--r); box-shadow: 10px 10px 0 var(--shadow);
+}
+:root[data-theme="dark"] .hero { box-shadow: 10px 10px 0 #FFF4D6; }
+.hero-main { min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; }
+.big {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: .4rem;
+  font-family: var(--font-display); font-weight: 800; line-height: .82; letter-spacing: -0.055em;
+}
+.big .num { font-size: clamp(5.4rem, 21vw, 15.5rem); font-variant-numeric: tabular-nums; }
+.big .num.is-empty { color: transparent; -webkit-text-stroke: 3px var(--ink); }
+.big .of { font-size: clamp(1.6rem, 5vw, 3.2rem); letter-spacing: -0.03em; }
+.caption { font-size: 1.05rem; font-weight: 500; max-width: 36ch; }
+
+.ruler { position: relative; margin-top: 30px; }
+.ruler-bar { position: relative; height: 26px; border: var(--bw) solid var(--ink); border-radius: 999px; background: var(--surface); overflow: hidden; }
+.ruler-fill {
+  position: absolute; inset: 0 auto 0 0; width: 0; background: var(--ink);
+  background-image: repeating-linear-gradient(-45deg, transparent 0 8px, rgba(255,255,255,.18) 8px 16px);
+  transition: width .9s cubic-bezier(.2,.8,.2,1);
+}
+.ruler-proj { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--pink); border-right: 3px dashed var(--ink); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.ruler-target { position: absolute; top: -26px; bottom: -4px; left: 0; width: 0; border-left: 3px solid var(--ink); transition: left .6s cubic-bezier(.2,.8,.2,1); }
+.ruler-target span {
+  position: absolute; top: 0; left: 0; transform: translateX(-50%); white-space: nowrap;
+  background: var(--ink); color: var(--yellow); font-family: var(--font-mono); font-size: .7rem; padding: .05rem .4rem; border-radius: 4px;
+}
+.ruler-ticks { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: .75rem; margin-top: .3rem; }
+
+.hero-side { display: grid; gap: 18px; align-content: center; }
+.sticker {
+  padding: 14px 16px; border: var(--bw) solid var(--ink); border-radius: var(--r);
+  box-shadow: 5px 5px 0 var(--shadow); background: var(--surface);
+  display: grid; gap: 2px;
+}
+.sticker:nth-child(1) { transform: rotate(-1.6deg); background: var(--pink); }
+.sticker:nth-child(2) { transform: rotate(1.2deg); background: var(--mint); }
+.sticker:nth-child(3) { transform: rotate(-.8deg); background: var(--surface); border-style: dashed; }
+.sticker small { font-family: var(--font-mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; }
+.sticker strong { font-family: var(--font-display); font-size: clamp(2.4rem, 6vw, 3.4rem); font-weight: 800; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.sticker span { font-weight: 500; font-size: .95rem; overflow-wrap: anywhere; }
+
+/* ============================================================ SECTIONS */
+section.block { margin-top: 64px; }
+.sec-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.sec-title { font-size: clamp(2.2rem, 7vw, 4rem); font-weight: 800; display: flex; align-items: baseline; gap: .8rem; }
+.sec-no {
+  font-family: var(--font-mono); font-size: .95rem; letter-spacing: 0; padding: .25rem .5rem;
+  border: 2px solid var(--ink); border-radius: 6px; background: var(--surface); transform: translateY(-.6rem);
+}
+.sec-sub { color: var(--muted); font-weight: 500; max-width: 46ch; }
+
+/* ============================================================ PLAN */
+.plan-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.plan-card { padding: 22px; display: grid; gap: 16px; align-content: start; }
+.plan-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hint { font-size: .85rem; color: var(--muted); }
+.need {
+  border: var(--bw) solid var(--ink); border-radius: var(--r-sm); padding: 14px 16px; background: var(--surface);
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: center;
+  transition: background-color .3s;
+}
+.need.ok { background: var(--mint); }
+.need.hard { background: var(--yellow); }
+.need.out { background: var(--pink); }
+.need.done { background: var(--mint); }
+.need .n { font-family: var(--font-display); font-size: 3.2rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; grid-row: span 2; }
+.need .lbl { font-family: var(--font-mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; }
+.need .msg { font-weight: 500; }
+
+.switch {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%;
+  min-height: 56px; padding: .5rem .6rem .5rem 1rem;
+  border: var(--bw) solid var(--ink); border-radius: 999px; background: var(--surface-2);
+  font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; text-align: left;
+  box-shadow: 4px 4px 0 var(--shadow); transition: background-color .25s, transform .12s, box-shadow .12s;
+}
+.switch:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--shadow); }
+.switch .track { position: relative; width: 64px; height: 34px; border: var(--bw) solid var(--ink); border-radius: 999px; background: var(--surface); flex: none; }
+.switch .knob { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); transition: transform .25s cubic-bezier(.3,1.4,.5,1); }
+.switch .state { font-family: var(--font-mono); font-size: .75rem; margin-left: auto; margin-right: .3rem; }
+.switch[aria-pressed="true"] { background: var(--pink); color: #111; --ink: #111; --shadow: #111; }
+.switch[aria-pressed="true"] .track { background: #fff; }
+.switch[aria-pressed="true"] .knob { transform: translateX(30px); }
+.proj-row { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
+.proj-row strong { font-family: var(--font-display); font-size: 3.2rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.delta { font-family: var(--font-mono); font-size: .85rem; padding: .1rem .45rem; border: 2px solid var(--ink); border-radius: 6px; }
+.fill { display: grid; grid-template-columns: 1fr 7rem auto; gap: 10px; align-items: end; }
+
+/* ============================================================ TIMELINE */
+.timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+.chapter { position: relative; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 22px; padding-bottom: 40px; }
+.chapter::before { content: ''; position: absolute; left: 44px; top: 0; bottom: 0; width: 4px; transform: translateX(-50%); background: var(--ink); }
+.ch-num {
+  position: sticky; top: 16px; align-self: start; z-index: 2;
+  width: 88px; height: 88px; display: grid; place-content: center; text-align: center;
+  background: var(--mint); border: var(--bw) solid var(--ink); border-radius: 50%;
+  box-shadow: 4px 4px 0 var(--shadow);
+  font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; line-height: .9; letter-spacing: -0.04em;
+}
+:root[data-theme="dark"] .ch-num { box-shadow: 4px 4px 0 #FFF4D6; }
+.ch-num small { font-family: var(--font-mono); font-size: .6rem; letter-spacing: .1em; font-weight: 700; }
+.is-planned .ch-num { background: var(--pink); }
+.ch-card { position: relative; z-index: 1; padding: 18px; min-width: 0; }
+.is-planned .ch-card { border-style: dashed; }
+.ch-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 14px; }
+.ch-title { min-width: 0; flex: 1; display: grid; gap: 6px; justify-items: start; }
+.ch-name {
+  width: 100%; padding: .1rem .35rem; margin-left: -.4rem;
+  border: 2px solid transparent; border-radius: var(--r-sm); background: transparent;
+  font-family: var(--font-display); font-weight: 800; font-size: clamp(1.6rem, 4.4vw, 2.3rem); letter-spacing: -0.03em; line-height: 1.15;
+}
+.ch-name:hover { border-color: var(--muted); border-style: dashed; }
+.ch-name:focus { border-color: var(--ink); border-style: solid; background: var(--surface-2); outline: none; }
+.ch-gpa {
+  flex: none; text-align: right; padding: 8px 12px; border: var(--bw) solid var(--ink); border-radius: var(--r-sm);
+  background: var(--surface-2); min-width: 112px;
+}
+.ch-gpa small { display: block; font-family: var(--font-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.ch-gpa strong { display: block; font-family: var(--font-display); font-size: 2.1rem; font-weight: 800; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ch-gpa em { display: block; font-style: normal; font-size: .82rem; color: var(--muted); }
+
+.rows-head, .row, .add {
+  display: grid; gap: 8px; align-items: center;
+  grid-template-columns: minmax(0, 1fr) 4.6rem 7rem 44px;
+}
+body.whatif-on .rows-head, body.whatif-on .row { grid-template-columns: minmax(0, 1fr) 4.6rem 7rem 7rem 44px; }
+.add { grid-template-columns: minmax(0, 1fr) 4.6rem 10.5rem auto; }
+.rows-head { font-family: var(--font-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 0 8px 6px; }
+.rows-head .th-target { display: none; }
+body.whatif-on .rows-head .th-target { display: block; }
+.rows { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.row {
+  padding: 6px 6px 6px 8px; border: 2px solid var(--ink); border-radius: var(--r-sm); background: var(--surface);
+  transition: transform .15s, box-shadow .15s;
+}
+.row:hover, .row:focus-within { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--shadow); }
+.cell {
+  width: 100%; min-height: 40px; padding: .35rem .5rem;
+  border: 2px solid transparent; border-radius: 6px; background: transparent;
+  font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.cell:hover { border-color: var(--muted); border-style: dashed; }
+.cell:focus { border-color: var(--ink); border-style: solid; background: var(--surface-2); outline: none; box-shadow: 0 0 0 2px var(--focus); }
+.row .sel select { min-height: 40px; border-width: 2px; }
+.tg-wrap { display: none; }
+body.whatif-on .tg-wrap { display: block; visibility: hidden; }
+body.whatif-on .row.pending .tg-wrap { visibility: visible; }
+.tg-wrap .sel select { border-style: dashed; }
+
+.add { padding: 10px; border: var(--bw) dashed var(--ink); border-radius: var(--r-sm); background: var(--surface-2); }
+.add .input { border-width: 2px; }
+.add .sel select { border-width: 2px; }
+.add-err { grid-column: 1 / -1; color: var(--danger); font-weight: 600; font-size: .9rem; }
+.ch-empty { padding: 14px; margin-bottom: 12px; border: 2px dashed var(--muted); border-radius: var(--r-sm); color: var(--muted); }
+.ch-empty b { color: var(--text); }
+kbd { font-family: var(--font-mono); font-size: .8em; padding: .05rem .35rem; border: 2px solid var(--ink); border-bottom-width: 3px; border-radius: 5px; background: var(--surface); color: var(--text); }
+.ch-foot { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+.add-sem { display: flex; gap: 14px; flex-wrap: wrap; padding-left: 110px; position: relative; }
+.add-sem .btn { min-height: 56px; font-size: 1.05rem; }
+
+.empty {
+  padding: clamp(22px, 5vw, 44px); display: grid; gap: 22px; background: var(--surface);
+}
+.empty > .tag { justify-self: start; }
+.empty h3 { font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 800; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; counter-reset: s; }
+.steps li { counter-increment: s; padding: 14px; border: 2px solid var(--ink); border-radius: var(--r-sm); background: var(--surface-2); font-weight: 500; }
+.steps li::before { content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; margin-bottom: 8px; border: 2px solid var(--ink); border-radius: 50%; background: var(--yellow); color: #111; font-family: var(--font-display); font-weight: 800; }
+.steps li:nth-child(2)::before { background: var(--pink); }
+.steps li:nth-child(3)::before { background: var(--mint); }
+.empty-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+
+/* ============================================================ CHARTS */
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.chart-card { padding: 18px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+.chart-card.wide { grid-column: 1 / -1; }
+.chart-card h3 { font-size: 1.6rem; font-weight: 800; }
+.chart-card .sub { color: var(--muted); font-size: .92rem; margin-top: .2rem; }
+.chart-box { position: relative; height: 290px; }
+.chart-card.wide .chart-box { height: 340px; }
+.chart-empty, .chart-nolib {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px;
+  border: 2px dashed var(--muted); border-radius: var(--r-sm); background: var(--surface); color: var(--muted); font-weight: 500;
+}
+.chart-nolib { display: none; }
+.chart-box.no-lib .chart-nolib { display: grid; }
+.chart-box.no-lib canvas { visibility: hidden; }
+details.tbl summary { cursor: pointer; font-weight: 700; font-size: .9rem; width: fit-content; border-radius: 4px; }
+details.tbl table { width: 100%; border-collapse: collapse; margin-top: 10px; font-variant-numeric: tabular-nums; font-size: .92rem; }
+details.tbl th, details.tbl td { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--grid); }
+details.tbl th { font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; }
+
+/* ============================================================ FOOTER, TOAST, DIALOG */
+.foot { margin: 72px 0 40px; padding-top: 18px; border-top: var(--bw) solid var(--ink); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: .9rem; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 20px; z-index: 40; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px);
+  padding: 10px 10px 10px 16px; background: var(--ink); color: var(--bg);
+  border: var(--bw) solid var(--ink); border-radius: var(--r-sm); box-shadow: 5px 5px 0 var(--pink);
+  font-weight: 600; animation: toastIn .3s cubic-bezier(.2,.9,.3,1.3);
+}
+.toast .btn { --ink: #111; --shadow: #111; background: var(--yellow); color: #111; border-color: #111; box-shadow: none; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 16px); } }
+
+dialog {
+  width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 48px); padding: 0;
+  border: var(--bw) solid var(--ink); border-radius: var(--r); background: var(--surface); color: var(--text);
+  box-shadow: 10px 10px 0 var(--shadow);
+}
+dialog::backdrop { background: rgba(10, 9, 6, .55); }
+dialog[open] { animation: pop .25s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes pop { from { opacity: 0; transform: scale(.94) rotate(-1deg); } }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; background: var(--yellow); border-bottom: var(--bw) solid var(--ink); }
+.dlg-head h2 { font-size: 1.8rem; font-weight: 800; color: #111; }
+.dlg-head .icon-btn { color: #111; }
+.dlg-body { padding: 18px; display: grid; gap: 14px; }
+.scale-head, .scale-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 44px; gap: 10px; align-items: center; }
+.scale-head { font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+#scale-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dlg-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.dlg-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; border-top: var(--bw) solid var(--ink); background: var(--surface-2); }
+.scale-err { color: var(--danger); font-weight: 600; }
+hr.thick { border: 0; border-top: var(--bw) solid var(--ink); margin: 6px 0; width: 100%; }
+
+/* ============================================================ MOTION */
+@keyframes rowIn { from { opacity: 0; transform: translateY(-10px) scale(.97); } }
+@keyframes rowOut { to { opacity: 0; transform: translateX(28px) rotate(1.5deg); } }
+@keyframes shake { 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+@keyframes bump { 40% { transform: scale(1.06) rotate(-1deg); } }
+.enter { animation: rowIn .38s cubic-bezier(.2,.9,.3,1.3); }
+.leave { animation: rowOut .2s ease-in forwards; pointer-events: none; }
+.bump { animation: bump .35s ease; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .ticker-track { animation: none; }
+}
+
+/* ============================================================ RESPONSIVE */
+@media (max-width: 880px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-side .sticker:nth-child(3) { grid-column: 1 / -1; }
+  .plan-grid, .charts { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .tools .btn .lbl { display: none; }
+  .tools .btn { padding: .5rem .7rem; }
+  .hero { box-shadow: 6px 6px 0 var(--shadow); }
+  :root[data-theme="dark"] .hero { box-shadow: 6px 6px 0 #FFF4D6; }
+  .hero-side { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .sticker strong { font-size: 2.1rem; }
+  .chapter { grid-template-columns: 1fr; gap: 0; padding-bottom: 28px; }
+  .chapter::before { left: 26px; }
+  .ch-num {
+    position: relative; top: 0; width: auto; height: auto; justify-self: start; margin: 0 0 -3px 10px;
+    padding: .2rem .8rem; border-radius: 10px 10px 0 0; box-shadow: none; display: flex; gap: .4rem; align-items: baseline; font-size: 1.4rem;
+  }
+  :root[data-theme="dark"] .ch-num { box-shadow: none; }
+  .ch-card { padding: 14px; }
+  .ch-head { flex-direction: column; }
+  .ch-gpa { width: 100%; display: flex; align-items: baseline; gap: .6rem; text-align: left; }
+  .ch-gpa em { margin-left: auto; }
+  .rows-head { display: none !important; }
+  .row, body.whatif-on .row { grid-template-columns: 4rem minmax(0,1fr) 44px; gap: 6px; padding: 6px; }
+  body.whatif-on .row { grid-template-columns: 3.2rem minmax(0,1fr) minmax(0,1fr) 40px; }
+  .row .sel select { padding: .4rem 1.5rem .4rem .5rem; font-size: .92rem; }
+  .row .sel::after { right: .6rem; }
+  .row .name { grid-column: 1 / -1; }
+  .add { grid-template-columns: 4.6rem minmax(0,1fr) auto; }
+  .add .name-in { grid-column: 1 / -1; }
+  .add-sem { padding-left: 0; }
+  .add-sem .btn { flex: 1 1 100%; }
+  .plan-inputs { grid-template-columns: 1fr; }
+  .fill { grid-template-columns: 1fr auto; }
+  .fill .label { grid-column: 1 / -1; }
+  .chart-box, .chart-card.wide .chart-box { height: 260px; }
+}
+</style>
+</head>
+<body>
+<a class="btn yellow skip" href="#chapters">Skip to semesters</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#" aria-label="CGPA Tracker, back to top">
+      <span class="logo-mark" aria-hidden="true">4.0</span>
+      <span class="logo-word">CGPA&nbsp;Tracker</span>
+    </a>
+    <nav class="tools" aria-label="App tools">
+      <button class="btn sm" id="open-settings" type="button"><span aria-hidden="true">⚙</span><span class="lbl">Grade scale</span><span class="sr">Open grade scale and data settings</span></button>
+      <button class="btn sm" id="export-btn" type="button"><span aria-hidden="true">↓</span><span class="lbl">Export</span><span class="sr">Export data as JSON</span></button>
+      <button class="btn sm" id="import-btn" type="button"><span aria-hidden="true">↑</span><span class="lbl">Import</span><span class="sr">Import data from JSON</span></button>
+      <button class="btn sm theme-btn" id="theme-btn" type="button" aria-pressed="false"><span class="sun" aria-hidden="true">☀</span><span class="moon" aria-hidden="true">☾</span><span class="lbl">Dark</span><span class="sr">Dark mode</span></button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </nav>
+  </div>
+</header>
+
+<div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker"></div></div>
+
+<main class="wrap">
+  <!-- HERO -->
+  <section class="hero accent" aria-labelledby="hero-label">
+    <div class="hero-main">
+      <p><span class="tag" id="hero-label">Cumulative GPA</span></p>
+      <div>
+        <p class="big" aria-hidden="true"><span id="cgpa" class="num is-empty">0.00</span><span class="of">/4.00</span></p>
+        <p class="sr" id="cgpa-sr"></p>
+        <p class="caption" id="cgpa-caption">Add a graded subject and this number comes alive.</p>
+      </div>
+      <div class="ruler" aria-hidden="true">
+        <div class="ruler-bar">
+          <div class="ruler-proj" id="ruler-proj"></div>
+          <div class="ruler-fill" id="ruler-fill"></div>
+        </div>
+        <div class="ruler-target" id="ruler-target"><span id="ruler-target-lbl">Target 3.50</span></div>
+        <div class="ruler-ticks"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span></div>
+      </div>
+    </div>
+    <div class="hero-side">
+      <div class="sticker">
+        <small>Latest semester GPA</small>
+        <strong id="sem-gpa">—</strong>
+        <span id="sem-name">No graded semester yet</span>
+      </div>
+      <div class="sticker">
+        <small>Credit hours earned</small>
+        <strong id="credits">0</strong>
+        <span id="credits-sub">0 subjects graded</span>
+      </div>
+      <div class="sticker" id="proj-sticker" hidden>
+        <small>What-if projection</small>
+        <strong id="proj-hero">—</strong>
+        <span id="proj-hero-sub"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAN -->
+  <section class="block" aria-labelledby="plan-h">
+    <div class="sec-head">
+      <h2 class="sec-title" id="plan-h"><span class="sec-no">01</span>The plan</h2>
+      <p class="sec-sub">Set a target, see what next semester has to look like, then play with what-if grades.</p>
+    </div>
+    <div class="plan-grid">
+      <div class="panel plan-card">
+        <div class="plan-inputs">
+          <div class="field">
+            <label for="target">Target CGPA</label>
+            <input class="input" id="target" type="number" inputmode="decimal" min="0" max="4" step="0.01">
+          </div>
+          <div class="field">
+            <label for="next-cr">Next sem credits</label>
+            <input class="input" id="next-cr" type="number" inputmode="decimal" min="1" max="60" step="0.5" aria-describedby="next-src">
+          </div>
+        </div>
+        <p class="hint" id="next-src"></p>
+        <div class="need" id="need" aria-live="polite">
+          <span class="n" id="need-n">—</span>
+          <span class="lbl" id="need-lbl">GPA needed next semester</span>
+          <span class="msg" id="need-msg"></span>
+        </div>
+      </div>
+      <div class="panel plan-card">
+        <button class="switch" id="whatif" type="button" aria-pressed="false">
+          What-if mode <span class="state" id="whatif-state">OFF</span><span class="track" aria-hidden="true"><span class="knob"></span></span>
+        </button>
+        <p class="hint">Turn it on, then pick target grades on any subject that doesn't have a grade yet. Your projected CGPA updates instantly. Targets never overwrite real grades.</p>
+        <div id="whatif-body" hidden>
+          <div class="proj-row" aria-live="polite">
+            <span class="label">Projected CGPA</span>
+            <strong id="proj-cgpa">—</strong>
+            <span class="delta" id="proj-delta"></span>
+          </div>
+          <p class="hint" id="whatif-empty" hidden>No pending subjects yet. Add an upcoming semester and leave the grade as "No grade yet".</p>
+          <div class="fill" id="fill" style="margin-top:14px">
+            <span class="label" id="fill-lbl">Set every pending subject's target to</span>
+            <span class="sel t-d"><select id="fill-grade" aria-labelledby="fill-lbl"></select></span>
+            <button class="btn pink" type="button" id="fill-apply">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTERS -->
+  <section class="block" id="chapters" aria-labelledby="ch-h" tabindex="-1">
+    <div class="sec-head">
+      <h2 class="sec-title" id="ch-h"><span class="sec-no">02</span>The chapters</h2>
+      <p class="sec-sub" id="ch-sub">Every semester is a chapter. Edit anything by clicking on it.</p>
+    </div>
+    <div id="timeline-root"></div>
+    <div class="add-sem" id="add-sem">
+      <button class="btn yellow" type="button" id="add-done">+ Completed semester</button>
+      <button class="btn pink" type="button" id="add-next">+ Upcoming semester</button>
+    </div>
+  </section>
+
+  <!-- CHARTS -->
+  <section class="block" id="numbers" aria-labelledby="num-h">
+    <div class="sec-head">
+      <h2 class="sec-title" id="num-h"><span class="sec-no">03</span>The numbers</h2>
+      <p class="sec-sub">Dashed segments are what-if projections. Each chart has a table view underneath.</p>
+    </div>
+    <div class="charts">
+      <figure class="panel chart-card wide" style="margin:0">
+        <figcaption><h3>GPA by semester</h3><p class="sub">Semester GPA against your running CGPA, on the 4.00 scale.</p></figcaption>
+        <div class="chart-box"><canvas id="c-line" role="img" aria-label="Line chart of semester GPA and cumulative CGPA"></canvas>
+          <div class="chart-empty" id="e-line">Your trend line appears after your first graded semester.</div>
+          <div class="chart-nolib">Charts need an internet connection to load. The tables below still work.</div></div>
+        <details class="tbl"><summary>View as table</summary><div id="t-line"></div></details>
+      </figure>
+      <figure class="panel chart-card" style="margin:0">
+        <figcaption><h3>Grade spread</h3><p class="sub">How many subjects landed on each grade.</p></figcaption>
+        <div class="chart-box"><canvas id="c-dist" role="img" aria-label="Bar chart of grade distribution"></canvas>
+          <div class="chart-empty" id="e-dist">No grades yet. Your A's will stack up here.</div>
+          <div class="chart-nolib">Charts need an internet connection to load. The tables below still work.</div></div>
+        <details class="tbl"><summary>View as table</summary><div id="t-dist"></div></details>
+      </figure>
+      <figure class="panel chart-card" style="margin:0">
+        <figcaption><h3>Credit load</h3><p class="sub">Credit hours per semester, graded vs still pending.</p></figcaption>
+        <div class="chart-box"><canvas id="c-cred" role="img" aria-label="Stacked bar chart of credit hours per semester"></canvas>
+          <div class="chart-empty" id="e-cred">Add subjects to see your credit load per semester.</div>
+          <div class="chart-nolib">Charts need an internet connection to load. The tables below still work.</div></div>
+        <details class="tbl"><summary>View as table</summary><div id="t-cred"></div></details>
+      </figure>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span id="saved-note">Saved in this browser only. Export a backup now and then.</span>
+    <span>Shortcuts: <kbd>Enter</kbd> adds a subject · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes a delete</span>
+  </footer>
+</main>
+
+<div class="toast" id="toast" role="status" hidden><span id="toast-msg"></span><button class="btn sm" type="button" id="toast-undo">Undo</button></div>
+<div class="sr" aria-live="polite" id="announce"></div>
+
+<dialog id="settings" aria-labelledby="set-h">
+  <div class="dlg-head"><h2 id="set-h">Grade scale</h2><button class="icon-btn" type="button" data-close aria-label="Close settings">✕</button></div>
+  <div class="dlg-body">
+    <p class="hint">Points from 0 to 4.00. Rename a letter and every subject using it follows along.</p>
+    <div class="scale-head" aria-hidden="true"><span>Grade</span><span>Points</span><span></span></div>
+    <ol id="scale-rows"></ol>
+    <p class="scale-err" id="scale-err" role="alert" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn sm" type="button" id="scale-add">+ Add grade</button>
+      <button class="btn sm ghost" type="button" id="scale-reset">Reset to default</button>
+    </div>
+    <hr class="thick">
+    <h3 style="font-size:1.4rem">Your data</h3>
+    <p class="hint">Everything lives in this browser's localStorage. Export a JSON backup to move between devices.</p>
+    <div class="dlg-actions">
+      <button class="btn sm mint" type="button" id="dlg-export">↓ Export JSON</button>
+      <button class="btn sm" type="button" id="dlg-import">↑ Import JSON</button>
+      <button class="btn sm ghost danger" type="button" id="clear-all">Clear all semesters</button>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn sm ghost" type="button" data-close>Cancel</button>
+    <button class="btn sm yellow" type="button" id="scale-save">Save scale</button>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ============================================================ STATE */
+const KEY = 'cgpa-tracker:v1';
+// Default scale. Edit in the app (Grade scale button) or change it here.
+const DEFAULT_SCALE = [
+  ['A', 4.00], ['A-', 3.67], ['B+', 3.33], ['B', 3.00], ['B-', 2.67],
+  ['C+', 2.33], ['C', 2.00], ['C-', 1.67], ['D+', 1.33], ['D', 1.00], ['F', 0.00]
+].map(([letter, points]) => ({ letter, points }));
+const MAX_CREDITS = 30;
+
+const $ = s => document.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2, 10);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const f2 = v => (v == null || !isFinite(v)) ? '—' : v.toFixed(2);
+const fcr = n => String(Math.round(n * 10) / 10);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+function defaultState() {
+  return { version: 1, semesters: [], scale: DEFAULT_SCALE.map(g => ({ ...g })), targetCgpa: 3.5, nextCredits: 15, whatIf: false, theme: null };
+}
+
+// Validates anything loaded from storage or an imported file.
+function normalize(d) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.semesters)) throw new Error('This file is not a CGPA Tracker export.');
+  const s = defaultState();
+  if (Array.isArray(d.scale)) {
+    const seen = new Set();
+    const sc = d.scale
+      .filter(g => g && String(g.letter ?? '').trim() && isFinite(parseFloat(g.points)))
+      .map(g => ({ letter: String(g.letter).trim().slice(0, 4), points: clamp(parseFloat(g.points), 0, 4) }))
+      .filter(g => !seen.has(g.letter) && seen.add(g.letter));
+    if (sc.length) s.scale = sc.sort((a, b) => b.points - a.points);
+  }
+  const grade = g => (g == null || g === '') ? null : String(g);
+  s.semesters = d.semesters.filter(m => m && typeof m === 'object').map((m, i) => ({
+    id: String(m.id || uid()),
+    name: String(m.name || `Semester ${i + 1}`).slice(0, 60),
+    planned: !!m.planned,
+    subjects: (Array.isArray(m.subjects) ? m.subjects : []).filter(x => x && typeof x === 'object').map(x => ({
+      id: String(x.id || uid()),
+      name: String(x.name || 'Untitled subject').slice(0, 80),
+      credits: clamp(parseFloat(x.credits) || 0, 0, MAX_CREDITS),
+      grade: grade(x.grade),
+      target: grade(x.target)
+    }))
+  }));
+  if (isFinite(parseFloat(d.targetCgpa))) s.targetCgpa = clamp(parseFloat(d.targetCgpa), 0, 4);
+  if (parseFloat(d.nextCredits) > 0) s.nextCredits = clamp(parseFloat(d.nextCredits), 1, 60);
+  s.whatIf = !!d.whatIf;
+  s.theme = (d.theme === 'dark' || d.theme === 'light') ? d.theme : null;
+  return s;
+}
+
+function load() {
+  try { const raw = localStorage.getItem(KEY); if (raw) return normalize(JSON.parse(raw)); } catch (e) { console.warn(e); }
+  return defaultState();
+}
+let state = load();
+let saveWarned = false;
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    $('#saved-note').textContent = `Saved in this browser at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Export a backup now and then.`;
+  } catch (e) {
+    if (!saveWarned) { saveWarned = true; toast('This browser blocked saving. Export a JSON backup so you don\'t lose anything.'); }
+  }
+}
+
+const findSem = id => state.semesters.find(m => m.id === id);
+const findSub = id => { for (const m of state.semesters) { const s = m.subjects.find(x => x.id === id); if (s) return { sem: m, sub: s }; } return null; };
+const pmap = () => new Map(state.scale.map(g => [g.letter, g.points]));
+const tierOf = p => p == null ? 't-none' : p >= 3.67 ? 't-a' : p >= 2.67 ? 't-b' : p >= 1.67 ? 't-c' : 't-d';
+
+/* ============================================================ MATH */
+function compute() {
+  const pm = pmap();
+  let C = 0, Q = 0, earned = 0, pC = 0, pQ = 0, graded = 0, total = 0;
+  const dist = new Map(state.scale.map(g => [g.letter, { n: 0, cr: 0 }]));
+  const perSem = state.semesters.map(sem => {
+    let c = 0, q = 0, tc = 0, tq = 0, pending = 0;
+    for (const s of sem.subjects) {
+      total++;
+      const g = s.grade != null && pm.has(s.grade) ? pm.get(s.grade) : null;
+      if (g != null) {
+        graded++; c += s.credits; q += g * s.credits;
+        if (g > 0) earned += s.credits;
+        const d = dist.get(s.grade); d.n++; d.cr += s.credits;
+      } else {
+        pending += s.credits;
+        const t = state.whatIf && s.target != null && pm.has(s.target) ? pm.get(s.target) : null;
+        if (t != null) { tc += s.credits; tq += t * s.credits; }
+      }
+    }
+    C += c; Q += q; pC += c + tc; pQ += q + tq;
+    return {
+      sem, credits: c, pending, gpa: c ? q / c : null,
+      projGpa: (c + tc) ? (q + tq) / (c + tc) : null, hasProj: tc > 0,
+      cgpa: C ? Q / C : null, projCgpa: pC ? pQ / pC : null
+    };
+  });
+  const latest = [...perSem].reverse().find(p => p.gpa != null) || null;
+  return { C, Q, earned, graded, total, cgpa: C ? Q / C : null, projCgpa: pC ? pQ / pC : null, hasProj: pC > C, perSem, latest, dist, pm };
+}
+
+function pendingCredits(sem, pm) {
+  return sem.subjects.reduce((a, s) => a + ((s.grade != null && pm.has(s.grade)) ? 0 : s.credits), 0);
+}
+
+function planNext(st) {
+  const next = state.semesters.find(m => m.planned && pendingCredits(m, st.pm) > 0)
+            || state.semesters.find(m => pendingCredits(m, st.pm) > 0) || null;
+  const auto = next ? pendingCredits(next, st.pm) : null;
+  const N = auto || state.nextCredits;
+  const T = state.targetCgpa;
+  const need = (T * (st.C + N) - st.Q) / N;
+  const best = (st.Q + 4 * N) / (st.C + N);
+  return { next, auto, N, T, need, best };
+}
+
+/* ============================================================ NUMBER COUNT-UP */
+function countTo(el, to, dec = 2) {
+  const from = typeof el._v === 'number' ? el._v : 0;
+  el._v = to;
+  cancelAnimationFrame(el._raf);
+  if (reduceMotion.matches || Math.abs(from - to) < 1e-9) { el.textContent = to.toFixed(dec); return; }
+  const t0 = performance.now(), dur = 750;
+  const step = t => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = (from + (to - from) * e).toFixed(dec);
+    if (k < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+function setNum(el, v, dec = 2) {
+  if (v == null || !isFinite(v)) { cancelAnimationFrame(el._raf); el._v = 0; el.textContent = '—'; return; }
+  countTo(el, v, dec);
+}
+function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+
+/* ============================================================ RENDER: TIMELINE */
+const root = $('#timeline-root');
+const justAdded = new Set();
+const drafts = {};       // remembers the credit value in each semester's quick-add row
+let pendingFocus = null;
+let pendingScroll = null;
+
+function gradeOptions(selected, emptyLabel) {
+  const pm = pmap();
+  let html = `<option value="">${esc(emptyLabel)}</option>`;
+  for (const g of state.scale) html += `<option value="${esc(g.letter)}"${g.letter === selected ? ' selected' : ''}>${esc(g.letter)} · ${g.points.toFixed(2)}</option>`;
+  if (selected != null && !pm.has(selected)) html += `<option value="${esc(selected)}" selected>${esc(selected)} (not in scale)</option>`;
+  return html;
+}
+const selTier = v => tierOf(v != null && pmap().has(v) ? pmap().get(v) : null);
+
+function rowHTML(s) {
+  const pending = !(s.grade != null && pmap().has(s.grade));
+  const id = s.id, nm = esc(s.name);
+  return `<li class="row${pending ? ' pending' : ''}${justAdded.has(id) ? ' enter' : ''}" data-sub="${id}">
+    <input class="cell name" id="n-${id}" data-f="name" value="${nm}" maxlength="80" aria-label="Subject name" autocomplete="off">
+    <input class="cell" id="c-${id}" data-f="credits" type="number" inputmode="decimal" min="0" max="${MAX_CREDITS}" step="0.5" value="${fcr(s.credits)}" aria-label="Credit hours for ${nm}">
+    <span class="sel ${selTier(s.grade)}"><select id="g-${id}" data-f="grade" aria-label="Grade for ${nm}">${gradeOptions(s.grade, 'Pending')}</select></span>
+    <span class="tg-wrap"><span class="sel ${selTier(s.target)}"><select id="t-${id}" data-f="target" aria-label="What-if target grade for ${nm}">${gradeOptions(s.target, 'Target?')}</select></span></span>
+    <button class="icon-btn" type="button" id="x-${id}" data-act="del-sub" aria-label="Delete ${nm}">✕</button>
+  </li>`;
+}
+
+function chapterHTML(sem, i, ps) {
+  const id = sem.id, nm = esc(sem.name);
+  const draftCr = drafts[id] ?? '';
+  return `<li class="chapter${sem.planned ? ' is-planned' : ''}${justAdded.has(id) ? ' enter' : ''}" data-sem="${id}">
+    <div class="ch-num" aria-hidden="true"><small>CH.</small>${String(i + 1).padStart(2, '0')}</div>
+    <article class="panel ch-card" aria-labelledby="sn-${id}">
+      <header class="ch-head">
+        <div class="ch-title">
+          <span class="tag ${sem.planned ? 'pink' : 'mint'}">${sem.planned ? 'Upcoming' : 'Completed'}</span>
+          <input class="ch-name" id="sn-${id}" data-f="sem-name" value="${nm}" maxlength="60" aria-label="Semester name" autocomplete="off">
+        </div>
+        <div class="ch-gpa" id="gpa-${id}">${gpaBadge(ps)}</div>
+      </header>
+      ${sem.subjects.length ? `
+        <div class="rows-head" aria-hidden="true"><span>Subject</span><span>Credits</span><span>Grade</span><span class="th-target">Target</span><span></span></div>
+        <ul class="rows" aria-label="Subjects in ${nm}">${sem.subjects.map(rowHTML).join('')}</ul>`
+      : `<p class="ch-empty"><b>No subjects yet.</b> Type a subject name, its credit hours and grade below, then press <kbd>Enter</kbd>. ${sem.planned ? 'Haven\'t got the grade yet? Leave it as "No grade yet" and fill it in later.' : ''}</p>`}
+      <form class="add" data-sem="${id}" novalidate>
+        <input class="input name-in" id="an-${id}" name="sname" placeholder="Subject, e.g. Circuit Theory" maxlength="80" aria-label="New subject name" autocomplete="off">
+        <input class="input" id="ac-${id}" name="scredits" type="number" inputmode="decimal" min="0" max="${MAX_CREDITS}" step="0.5" placeholder="3" value="${esc(draftCr)}" aria-label="Credit hours (blank means 3)">
+        <span class="sel t-none"><select id="ag-${id}" name="sgrade" aria-label="Grade (optional)">${gradeOptions(null, sem.planned ? 'No grade yet' : 'Grade…')}</select></span>
+        <button class="btn yellow" type="submit" id="ab-${id}">Add <span aria-hidden="true">↵</span></button>
+        <p class="add-err" id="ae-${id}" role="alert" hidden></p>
+      </form>
+      <footer class="ch-foot">
+        <button class="btn sm ghost" type="button" id="tp-${id}" data-act="toggle-planned">${sem.planned ? '✓ Mark as completed' : '↺ Mark as upcoming'}</button>
+        <button class="btn sm ghost danger" type="button" id="ds-${id}" data-act="del-sem">Delete semester</button>
+      </footer>
+    </article>
+  </li>`;
+}
+
+function gpaBadge(ps) {
+  if (!ps) return '';
+  const proj = state.whatIf && ps.hasProj;
+  const v = proj ? ps.projGpa : ps.gpa;
+  const label = proj ? 'Projected GPA' : 'Semester GPA';
+  const cr = `${fcr(ps.credits)} cr graded${ps.pending ? ` · ${fcr(ps.pending)} pending` : ''}`;
+  return `<small>${label}</small><strong>${proj ? '~' : ''}${f2(v)}</strong><em>${cr}</em>`;
+}
+
+function emptyHTML() {
+  return `<div class="panel empty">
+    <span class="tag pink">Chapter zero</span>
+    <h3>Your transcript starts here.</h3>
+    <ol class="steps">
+      <li><b>Add a semester.</b> One you've finished, or one coming up.</li>
+      <li><b>Add subjects.</b> Name, credit hours, grade. Press <kbd>Enter</kbd>.</li>
+      <li><b>Watch it move.</b> Your CGPA, the plan and the charts update instantly.</li>
+    </ol>
+    <div class="empty-actions">
+      <button class="btn yellow" type="button" id="first-sem">+ Add my first semester</button>
+      <button class="btn" type="button" id="sample">Try it with sample data</button>
+    </div>
+  </div>`;
+}
+
+function renderTimeline(st) {
+  const a = document.activeElement;
+  const fk = pendingFocus || (a && root.contains(a) ? a.id : null);
+  let sel = null;
+  if (!pendingFocus && a && a.id && typeof a.selectionStart === 'number') { try { sel = [a.selectionStart, a.selectionEnd]; } catch (e) {} }
+  pendingFocus = null;
+
+  if (!state.semesters.length) {
+    root.innerHTML = emptyHTML();
+    $('#add-sem').hidden = true;
+  } else {
+    root.innerHTML = `<ol class="timeline">${state.semesters.map((m, i) => chapterHTML(m, i, st.perSem[i])).join('')}</ol>`;
+    $('#add-sem').hidden = false;
+  }
+  justAdded.clear();
+  if (fk) {
+    const el = document.getElementById(fk);
+    if (el) { el.focus({ preventScroll: !pendingScroll }); if (sel) { try { el.setSelectionRange(sel[0], sel[1]); } catch (e) {} } }
+  }
+  if (pendingScroll) {
+    const el = document.getElementById(pendingScroll);
+    pendingScroll = null;
+    if (el) el.closest('.chapter')?.scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' });
+  }
+  const totalCr = st.perSem.reduce((a, p) => a + p.credits + p.pending, 0);
+  $('#ch-sub').textContent = state.semesters.length
+    ? `${state.semesters.length} chapter${state.semesters.length > 1 ? 's' : ''} · ${st.total} subject${st.total === 1 ? '' : 's'} · ${fcr(totalCr)} credit hours. Click any name, credit or grade to edit it.`
+    : 'Every semester is a chapter. Start with the one you just finished.';
+}
+
+/* ============================================================ RENDER: STATS */
+let lastCgpa = null;
+function updateStats(st = compute()) {
+  // hero
+  const big = $('#cgpa');
+  big.classList.toggle('is-empty', st.cgpa == null);
+  if (st.cgpa == null) { cancelAnimationFrame(big._raf); big._v = 0; big.textContent = '0.00'; }
+  else { countTo(big, st.cgpa); if (lastCgpa != null && Math.abs(lastCgpa - st.cgpa) > 1e-9) bump(big); }
+  lastCgpa = st.cgpa;
+  $('#cgpa-sr').textContent = st.cgpa == null ? 'No CGPA yet.' : `CGPA ${f2(st.cgpa)} out of 4.00`;
+  $('#cgpa-caption').textContent = st.cgpa == null
+    ? 'Add a graded subject and this number comes alive.'
+    : `Across ${fcr(st.C)} graded credit hours in ${st.perSem.filter(p => p.gpa != null).length} semester${st.perSem.filter(p => p.gpa != null).length === 1 ? '' : 's'}.`;
+
+  if (st.latest) { countTo($('#sem-gpa'), st.latest.gpa); $('#sem-name').textContent = st.latest.sem.name; }
+  else { setNum($('#sem-gpa'), null); $('#sem-name').textContent = 'No graded semester yet'; }
+  countTo($('#credits'), st.earned, Number.isInteger(st.earned) ? 0 : 1);
+  $('#credits-sub').textContent = `${st.graded} subject${st.graded === 1 ? '' : 's'} graded`;
+
+  const showProj = state.whatIf && st.hasProj;
+  $('#proj-sticker').hidden = !showProj;
+  if (showProj) {
+    countTo($('#proj-hero'), st.projCgpa);
+    const d = st.cgpa == null ? null : st.projCgpa - st.cgpa;
+    $('#proj-hero-sub').textContent = d == null ? 'Based on your target grades' : `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(2)} vs today`;
+  }
+
+  // ruler
+  $('#ruler-fill').style.width = `${(st.cgpa ?? 0) / 4 * 100}%`;
+  $('#ruler-proj').style.width = showProj ? `${st.projCgpa / 4 * 100}%` : '0';
+  $('#ruler-target').style.left = `${state.targetCgpa / 4 * 100}%`;
+  $('#ruler-target-lbl').textContent = `Target ${state.targetCgpa.toFixed(2)}`;
+
+  // per-semester badges
+  st.perSem.forEach(ps => { const el = document.getElementById(`gpa-${ps.sem.id}`); if (el) el.innerHTML = gpaBadge(ps); });
+
+  updatePlan(st);
+  updateCharts(st);
+}
+
+function updatePlan(st) {
+  const p = planNext(st);
+  const tIn = $('#target'), nIn = $('#next-cr');
+  if (document.activeElement !== tIn) tIn.value = state.targetCgpa.toFixed(2);
+  if (p.auto) {
+    nIn.value = fcr(p.auto); nIn.readOnly = true;
+    $('#next-src').textContent = `Taken from "${p.next.name}": the credit hours of its subjects without a grade.`;
+  } else {
+    nIn.readOnly = false;
+    if (document.activeElement !== nIn) nIn.value = fcr(state.nextCredits);
+    $('#next-src').textContent = 'Estimate. Add an upcoming semester with subjects and this fills itself in.';
+  }
+
+  const box = $('#need'), n = $('#need-n'), msg = $('#need-msg'), lbl = $('#need-lbl');
+  const asc = [...state.scale].sort((a, b) => a.points - b.points);
+  const letterFor = v => (asc.find(g => g.points >= v - 1e-9) || asc[asc.length - 1])?.letter;
+  const top = asc[asc.length - 1]?.letter || 'A';
+  const an = l => (/^[AEFHILMNORSX]/i.test(l) ? 'an ' : 'a ') + l;
+  box.className = 'need';
+  lbl.textContent = 'GPA needed next semester';
+  if (st.C === 0) {
+    box.classList.add('hard');
+    countTo(n, p.T);
+    msg.textContent = `No grades yet, so your first semester GPA is your CGPA. Aim for ${p.T.toFixed(2)} (about ${an(letterFor(p.T))} average).`;
+  } else if (p.need > 4 + 1e-9) {
+    box.classList.add('out');
+    countTo(n, p.need);
+    lbl.textContent = 'Needed. The max is 4.00';
+    msg.textContent = `Out of reach in one semester. Straight ${top}s across ${fcr(p.N)} credits takes you to ${p.best.toFixed(2)}. Spread the climb over more semesters.`;
+  } else if (p.need <= 0) {
+    box.classList.add('done');
+    countTo(n, 0);
+    msg.textContent = `Locked in. You stay at or above ${p.T.toFixed(2)} whatever happens next semester.`;
+  } else if (st.cgpa != null && p.need <= st.cgpa + 1e-9) {
+    box.classList.add('ok');
+    countTo(n, p.need);
+    msg.textContent = `At or below your current CGPA. About ${an(letterFor(p.need))} average across ${fcr(p.N)} credits keeps you on track.`;
+  } else {
+    box.classList.add('hard');
+    countTo(n, p.need);
+    msg.textContent = `Above your current ${f2(st.cgpa)}. You need about ${an(letterFor(p.need))} average across ${fcr(p.N)} credits.`;
+  }
+
+  // what-if panel
+  const on = state.whatIf;
+  $('#whatif').setAttribute('aria-pressed', String(on));
+  $('#whatif-state').textContent = on ? 'ON' : 'OFF';
+  document.body.classList.toggle('whatif-on', on);
+  $('#whatif-body').hidden = !on;
+  const anyPending = state.semesters.some(m => m.subjects.some(s => !(s.grade != null && st.pm.has(s.grade))));
+  $('#whatif-empty').hidden = anyPending;
+  $('#fill').hidden = !anyPending;
+  if (on) {
+    setNum($('#proj-cgpa'), st.hasProj ? st.projCgpa : st.cgpa);
+    const d = (st.hasProj && st.cgpa != null) ? st.projCgpa - st.cgpa : null;
+    $('#proj-delta').hidden = d == null;
+    if (d != null) $('#proj-delta').textContent = `${d >= 0 ? '▲ +' : '▼ −'}${Math.abs(d).toFixed(2)}`;
+  }
+}
+
+/* ============================================================ CHARTS */
+let charts = {}, chartsReady = false, lineProj = [];
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const trunc = (s, n = 14) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+
+function hatch(fg, bg) {
+  const c = document.createElement('canvas'); c.width = c.height = 10;
+  const x = c.getContext('2d');
+  x.fillStyle = bg; x.fillRect(0, 0, 10, 10);
+  x.strokeStyle = fg; x.lineWidth = 2.2; x.beginPath();
+  x.moveTo(0, 10); x.lineTo(10, 0); x.moveTo(-3, 3); x.lineTo(3, -3); x.moveTo(7, 13); x.lineTo(13, 7);
+  x.stroke();
+  return x.createPattern(c, 'repeat');
+}
+
+// Draws a label beside the last point of each line (direct labelling).
+const endLabels = {
+  id: 'endLabels',
+  afterDatasetsDraw(chart, _args, opts) {
+    const { ctx } = chart;
+    const metas = chart.data.datasets.map((ds, i) => ({ ds, meta: chart.getDatasetMeta(i) }))
+      .filter(m => !m.meta.hidden && m.meta.data.length);
+    if (!metas.length) return;
+    const pts = metas.map(m => ({ ...m, pt: m.meta.data[m.meta.data.length - 1], v: m.ds.data[m.ds.data.length - 1] }));
+    // nudge apart if they collide
+    if (pts.length === 2 && Math.abs(pts[0].pt.y - pts[1].pt.y) < 18) {
+      const [hi, lo] = pts[0].pt.y <= pts[1].pt.y ? [pts[0], pts[1]] : [pts[1], pts[0]];
+      hi.dy = -9; lo.dy = 9;
+    }
+    ctx.save();
+    ctx.font = `700 12px ${cssVar('--font-body')}`;
+    ctx.fillStyle = opts.color; ctx.textBaseline = 'middle';
+    for (const p of pts) if (p.v != null) ctx.fillText(`${p.ds.short} ${p.v.toFixed(2)}`, p.pt.x + 12, p.pt.y + (p.dy || 0));
+    ctx.restore();
+  }
+};
+// Vertical crosshair on the line chart.
+const crosshair = {
+  id: 'crosshair',
+  afterDraw(chart, _a, opts) {
+    const act = chart.tooltip?.getActiveElements?.();
+    if (!act || !act.length) return;
+    const x = act[0].element.x, { top, bottom } = chart.chartArea, ctx = chart.ctx;
+    ctx.save(); ctx.strokeStyle = opts.color; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.restore();
+  }
+};
+
+function buildCharts() {
+  const boxes = document.querySelectorAll('.chart-box');
+  if (!window.Chart) { boxes.forEach(b => b.classList.add('no-lib')); return; }
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+  const th = {
+    text: cssVar('--text'), muted: cssVar('--muted'), grid: cssVar('--grid'), ink: cssVar('--ink'),
+    bg: cssVar('--bg'), surface: cssVar('--surface'), s1: cssVar('--series-1'), s2: cssVar('--series-2'),
+    mint: cssVar('--mint'), yellow: cssVar('--yellow')
+  };
+  Chart.defaults.font.family = cssVar('--font-body');
+  Chart.defaults.font.size = 13;
+  Chart.defaults.color = th.muted;
+  Chart.defaults.borderColor = th.grid;
+  const tooltip = {
+    backgroundColor: th.ink, titleColor: th.bg, bodyColor: th.bg, footerColor: th.bg,
+    cornerRadius: 4, padding: 10, boxPadding: 5, caretSize: 6,
+    titleFont: { weight: '700', size: 13 }, bodyFont: { weight: '500' }
+  };
+  const xAxis = { grid: { display: false }, border: { color: th.ink, width: 2 }, ticks: { color: th.text, font: { weight: '600' }, callback(v) { return trunc(this.getLabelForValue(v)); } } };
+  const yAxis = { grid: { color: th.grid }, border: { display: false }, ticks: { color: th.muted } };
+  const legend = { position: 'top', align: 'start', labels: { color: th.text, usePointStyle: true, boxWidth: 10, boxHeight: 10, padding: 16, font: { weight: '600' } } };
+
+  const lineDs = (label, short, color, style) => ({
+    label, short, data: [], borderColor: color, backgroundColor: color,
+    borderWidth: 3, tension: 0, pointStyle: style, pointRadius: style === 'circle' ? 5 : 6, pointHoverRadius: 8, pointHitRadius: 16,
+    pointBackgroundColor: th.surface, pointBorderColor: color, pointBorderWidth: 3,
+    segment: { borderDash: c => lineProj[c.p1DataIndex] ? [7, 6] : undefined }
+  });
+  charts.line = new Chart($('#c-line'), {
+    type: 'line',
+    data: { labels: [], datasets: [lineDs('Semester GPA', 'GPA', th.s1, 'circle'), lineDs('Cumulative CGPA', 'CGPA', th.s2, 'rectRot')] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 900, easing: 'easeOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      layout: { padding: { right: 86, top: 6 } },
+      scales: { x: xAxis, y: { ...yAxis, min: 0, max: 4, ticks: { ...yAxis.ticks, stepSize: 0.5, callback: v => Number(v).toFixed(1) } } },
+      plugins: {
+        legend, endLabels: { color: th.text }, crosshair: { color: th.muted },
+        tooltip: { ...tooltip, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(2)}${lineProj[c.dataIndex] ? ' (projected)' : ''}` } }
+      }
+    },
+    plugins: [endLabels, crosshair]
+  });
+
+  charts.dist = new Chart($('#c-dist'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Subjects', data: [], info: [], backgroundColor: th.mint, hoverBackgroundColor: th.yellow, borderColor: th.ink, borderWidth: 2, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'bottom', maxBarThickness: 46 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 800, easing: 'easeOutBack' },
+      scales: { x: xAxis, y: { ...yAxis, beginAtZero: true, ticks: { ...yAxis.ticks, precision: 0 } } },
+      plugins: { legend: { display: false }, tooltip: { ...tooltip, displayColors: false, callbacks: { title: c => `Grade ${c[0].label}`, label: c => { const m = c.dataset.info[c.dataIndex]; return `${m.n} subject${m.n === 1 ? '' : 's'} · ${fcr(m.cr)} credits`; } } } }
+    }
+  });
+
+  charts.cred = new Chart($('#c-cred'), {
+    type: 'bar',
+    data: { labels: [], datasets: [
+      { label: 'Graded', data: [], backgroundColor: th.yellow, borderColor: th.ink, borderWidth: 2, borderSkipped: false, maxBarThickness: 46 },
+      { label: 'Pending / planned', data: [], backgroundColor: hatch(th.ink, th.surface), borderColor: th.ink, borderWidth: 2, borderSkipped: false, maxBarThickness: 46 }
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 800, easing: 'easeOutQuart' },
+      scales: { x: { ...xAxis, stacked: true }, y: { ...yAxis, stacked: true, beginAtZero: true, ticks: { ...yAxis.ticks, precision: 0 } } },
+      plugins: { legend: { ...legend, labels: { ...legend.labels, usePointStyle: false, boxWidth: 16, boxHeight: 12 } },
+        tooltip: { ...tooltip, mode: 'index', callbacks: { label: c => ` ${c.dataset.label}: ${fcr(c.parsed.y)} cr` } } }
+    }
+  });
+  chartsReady = true;
+  updateCharts(compute());
+}
+
+function table(head, rows) {
+  if (!rows.length) return '<p class="hint" style="margin-top:8px">Nothing to show yet.</p>';
+  return `<table><thead><tr>${head.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => i ? `<td>${esc(c)}</td>` : `<th scope="row">${esc(c)}</th>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+function updateCharts(st) {
+  const wi = state.whatIf;
+  const linePts = st.perSem.filter(p => p.gpa != null || (wi && p.hasProj));
+  const distRows = state.scale.map(g => ({ g, d: st.dist.get(g.letter) }));
+  const credPts = st.perSem.filter(p => p.credits + p.pending > 0);
+
+  $('#e-line').hidden = linePts.length > 0;
+  $('#e-dist').hidden = st.graded > 0;
+  $('#e-cred').hidden = credPts.length > 0;
+
+  $('#t-line').innerHTML = table(['Semester', 'GPA', 'CGPA'], linePts.map(p => [p.sem.name + (wi && p.hasProj ? ' (projected)' : ''), f2(wi ? p.projGpa : p.gpa), f2(wi ? p.projCgpa : p.cgpa)]));
+  $('#t-dist').innerHTML = table(['Grade', 'Subjects', 'Credits'], st.graded ? distRows.map(({ g, d }) => [g.letter, String(d.n), fcr(d.cr)]) : []);
+  $('#t-cred').innerHTML = table(['Semester', 'Graded', 'Pending'], credPts.map(p => [p.sem.name, fcr(p.credits), fcr(p.pending)]));
+
+  if (!chartsReady || !charts.line) return;
+  lineProj = linePts.map(p => wi && p.hasProj);
+  const L = charts.line;
+  L.data.labels = linePts.map(p => p.sem.name);
+  L.data.datasets[0].data = linePts.map(p => wi ? p.projGpa : p.gpa);
+  L.data.datasets[1].data = linePts.map(p => wi ? p.projCgpa : p.cgpa);
+  const vals = [...L.data.datasets[0].data, ...L.data.datasets[1].data].filter(v => v != null);
+  L.options.scales.y.min = vals.length ? Math.max(0, Math.floor((Math.min(...vals) - 0.25) * 2) / 2) : 0;
+  L.update();
+
+  const D = charts.dist;
+  D.data.labels = distRows.map(r => r.g.letter);
+  D.data.datasets[0].data = distRows.map(r => r.d.n);
+  D.data.datasets[0].info = distRows.map(r => r.d);
+  D.update();
+
+  const R = charts.cred;
+  R.data.labels = credPts.map(p => p.sem.name);
+  R.data.datasets[0].data = credPts.map(p => p.credits);
+  R.data.datasets[1].data = credPts.map(p => p.pending);
+  R.update();
+}
+
+// Build charts the first time they scroll into view, so they animate in.
+function watchCharts() {
+  if (!('IntersectionObserver' in window)) { buildCharts(); return; }
+  const io = new IntersectionObserver(es => {
+    if (es.some(e => e.isIntersecting)) { io.disconnect(); (document.fonts?.ready || Promise.resolve()).then(buildCharts); }
+  }, { threshold: 0.12 });
+  io.observe($('#numbers'));
+}
+
+/* ============================================================ TICKER */
+function renderTicker() {
+  const items = state.scale.map(g => `<span><b>${esc(g.letter)}</b> = ${g.points.toFixed(2)}</span><span>✦</span>`).join('');
+  $('#ticker').innerHTML = items + items + items + items;
+}
+
+/* ============================================================ COMMIT / UNDO / TOAST */
+function renderAll() { const st = compute(); renderTimeline(st); updateStats(st); renderTicker(); renderFill(); }
+function commit() { save(); renderAll(); }
+
+let undoSnap = null, toastTimer = null;
+function withUndo(label, fn) {
+  undoSnap = JSON.stringify(state);
+  fn();
+  commit();
+  toast(label, true);
+}
+function undo() {
+  if (!undoSnap) return;
+  state = normalize(JSON.parse(undoSnap));
+  undoSnap = null;
+  hideToast();
+  commit();
+  applyTheme();
+  announce('Undone.');
+}
+function toast(msg, canUndo = false) {
+  $('#toast-msg').textContent = msg;
+  $('#toast-undo').hidden = !canUndo;
+  const t = $('#toast');
+  t.hidden = false;
+  t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { hideToast(); undoSnap = null; }, canUndo ? 7000 : 4000);
+}
+function hideToast() { $('#toast').hidden = true; clearTimeout(toastTimer); }
+function announce(msg) { const a = $('#announce'); a.textContent = ''; setTimeout(() => { a.textContent = msg; }, 30); }
+
+/* ============================================================ ACTIONS */
+function addSemester(planned) {
+  const sem = { id: uid(), name: `Semester ${state.semesters.length + 1}`, planned, subjects: [] };
+  state.semesters.push(sem);
+  justAdded.add(sem.id);
+  pendingFocus = `an-${sem.id}`;
+  pendingScroll = `an-${sem.id}`;
+  commit();
+  announce(`${sem.name} added. Type the first subject name.`);
+}
+
+function animateOut(el, done) {
+  if (!el || reduceMotion.matches) { done(); return; }
+  el.classList.add('leave');
+  setTimeout(done, 190);
+}
+
+function setAddError(id, msg) {
+  const p = document.getElementById(`ae-${id}`);
+  if (!p) return;
+  p.hidden = !msg; p.textContent = msg || '';
+}
+
+root.addEventListener('submit', e => {
+  e.preventDefault();
+  const form = e.target.closest('form.add');
+  if (!form) return;
+  const sem = findSem(form.dataset.sem);
+  const nameEl = form.elements.namedItem('sname'), crEl = form.elements.namedItem('scredits'), grEl = form.elements.namedItem('sgrade');
+  const name = nameEl.value.trim();
+  nameEl.removeAttribute('aria-invalid'); crEl.removeAttribute('aria-invalid');
+  if (!name) { nameEl.setAttribute('aria-invalid', 'true'); setAddError(sem.id, 'Give the subject a name first.'); nameEl.focus(); return; }
+  const cr = crEl.value.trim() === '' ? 3 : parseFloat(crEl.value);
+  if (!(cr >= 0 && cr <= MAX_CREDITS)) { crEl.setAttribute('aria-invalid', 'true'); setAddError(sem.id, `Credit hours should be between 0 and ${MAX_CREDITS}.`); crEl.focus(); return; }
+  const sub = { id: uid(), name: name.slice(0, 80), credits: cr, grade: grEl.value || null, target: null };
+  sem.subjects.push(sub);
+  drafts[sem.id] = crEl.value;
+  justAdded.add(sub.id);
+  pendingFocus = `an-${sem.id}`;
+  commit();
+  announce(`Added ${sub.name}, ${fcr(cr)} credits${sub.grade ? `, grade ${sub.grade}` : ', no grade yet'}.`);
+});
+
+// Enter on the grade dropdown submits the quick-add row too.
+root.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('form.add select')) { e.preventDefault(); e.target.form.requestSubmit(); }
+  if (e.key === 'Enter' && e.target.matches('.cell, .ch-name') && e.target.tagName === 'INPUT') { e.preventDefault(); e.target.blur(); }
+  if (e.key === 'Escape' && e.target.matches('.cell, .ch-name')) {
+    const t = e.target, ref = t.dataset.f === 'sem-name' ? findSem(t.closest('[data-sem]').dataset.sem) : findSub(t.closest('[data-sub]').dataset.sub)?.sub;
+    if (ref) { t.value = t.dataset.f === 'credits' ? fcr(ref.credits) : ref.name; t.blur(); }
+  }
+});
+
+function onEdit(e) {
+  const t = e.target, f = t.dataset.f;
+  if (!f) return;
+  if (f === 'sem-name') {
+    if (e.type !== 'change') return;
+    const sem = findSem(t.closest('[data-sem]').dataset.sem);
+    const v = t.value.trim();
+    if (!v) { t.value = sem.name; return; }
+    sem.name = v.slice(0, 60); save(); updateStats();
+    return;
+  }
+  const hit = findSub(t.closest('[data-sub]')?.dataset.sub);
+  if (!hit) return;
+  const { sub } = hit;
+  if (f === 'name') {
+    if (e.type !== 'change') return;
+    const v = t.value.trim();
+    if (!v) { t.value = sub.name; return; }
+    sub.name = v.slice(0, 80);
+  } else if (f === 'credits') {
+    const v = parseFloat(t.value);
+    const ok = t.value.trim() !== '' && v >= 0 && v <= MAX_CREDITS;
+    if (!ok) { if (e.type === 'change') { t.value = fcr(sub.credits); toast(`Credit hours must be between 0 and ${MAX_CREDITS}.`); } return; }
+    sub.credits = v;
+  } else if (f === 'grade' || f === 'target') {
+    if (e.type !== 'change') return;
+    sub[f] = t.value || null;
+    t.parentElement.className = `sel ${selTier(sub[f])}`;
+    if (f === 'grade') t.closest('.row').classList.toggle('pending', !(sub.grade != null && pmap().has(sub.grade)));
+  }
+  save(); updateStats();
+}
+root.addEventListener('input', onEdit);
+root.addEventListener('change', onEdit);
+
+root.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.id === 'first-sem') return addSemester(false);
+  if (b.id === 'sample') return loadSample();
+  const act = b.dataset.act;
+  if (!act) return;
+  const semEl = b.closest('[data-sem]');
+  const sem = semEl && findSem(semEl.dataset.sem);
+  if (act === 'del-sub') {
+    const rowEl = b.closest('[data-sub]');
+    const hit = findSub(rowEl.dataset.sub);
+    animateOut(rowEl, () => {
+      pendingFocus = `an-${hit.sem.id}`;
+      withUndo(`Deleted "${hit.sub.name}"`, () => { hit.sem.subjects = hit.sem.subjects.filter(s => s.id !== hit.sub.id); });
+    });
+  } else if (act === 'del-sem') {
+    animateOut(semEl, () => {
+      pendingFocus = null;
+      withUndo(`Deleted "${sem.name}" and its ${sem.subjects.length} subject${sem.subjects.length === 1 ? '' : 's'}`, () => {
+        state.semesters = state.semesters.filter(m => m.id !== sem.id);
+      });
+      $('#toast-undo').focus();
+    });
+  } else if (act === 'toggle-planned') {
+    sem.planned = !sem.planned;
+    pendingFocus = b.id;
+    commit();
+    announce(`${sem.name} marked as ${sem.planned ? 'upcoming' : 'completed'}.`);
+  }
+});
+
+$('#add-done').addEventListener('click', () => addSemester(false));
+$('#add-next').addEventListener('click', () => addSemester(true));
+
+$('#target').addEventListener('change', e => {
+  const v = parseFloat(e.target.value);
+  if (isFinite(v)) state.targetCgpa = clamp(Math.round(v * 100) / 100, 0, 4);
+  e.target.value = state.targetCgpa.toFixed(2);
+  save(); updateStats();
+});
+$('#target').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (isFinite(v) && v >= 0 && v <= 4) { state.targetCgpa = v; save(); updateStats(); }
+});
+$('#next-cr').addEventListener('change', e => {
+  if (e.target.readOnly) return;
+  const v = parseFloat(e.target.value);
+  if (v > 0) state.nextCredits = clamp(v, 1, 60);
+  e.target.value = fcr(state.nextCredits);
+  save(); updateStats();
+});
+$('#next-cr').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (!e.target.readOnly && v >= 1 && v <= 60) { state.nextCredits = v; save(); updateStats(); }
+});
+
+$('#whatif').addEventListener('click', () => {
+  state.whatIf = !state.whatIf;
+  save(); updateStats();
+  announce(state.whatIf ? 'What-if mode on. Pick target grades on pending subjects.' : 'What-if mode off.');
+});
+$('#fill-apply').addEventListener('click', () => {
+  const g = $('#fill-grade').value;
+  const pm = pmap();
+  const pending = state.semesters.flatMap(m => m.subjects).filter(s => !(s.grade != null && pm.has(s.grade)));
+  withUndo(`Set ${pending.length} pending subject${pending.length === 1 ? '' : 's'} to a target of ${g}`, () => {
+    pending.forEach(s => { s.target = g; });
+  });
+});
+function renderFill() {
+  const cur = $('#fill-grade').value;
+  $('#fill-grade').innerHTML = state.scale.map(g => `<option value="${esc(g.letter)}">${esc(g.letter)} · ${g.points.toFixed(2)}</option>`).join('');
+  if (cur && state.scale.some(g => g.letter === cur)) $('#fill-grade').value = cur;
+  else if (state.scale.some(g => g.letter === 'B+')) $('#fill-grade').value = 'B+';
+}
+
+/* ============================================================ THEME */
+function currentTheme() { return state.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+function applyTheme() {
+  const t = currentTheme();
+  document.documentElement.setAttribute('data-theme', t);
+  $('#theme-btn').setAttribute('aria-pressed', String(t === 'dark'));
+  $('#theme-btn .lbl').textContent = t === 'dark' ? 'Light' : 'Dark';
+  document.querySelector('meta[name="theme-color"]').content = t === 'dark' ? '#16140F' : '#FFD23F';
+  if (chartsReady) buildCharts();
+}
+$('#theme-btn').addEventListener('click', () => {
+  state.theme = currentTheme() === 'dark' ? 'light' : 'dark';
+  save(); applyTheme();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (!state.theme) applyTheme(); });
+
+/* ============================================================ EXPORT / IMPORT */
+function exportData() {
+  const data = { app: 'cgpa-tracker', exportedAt: new Date().toISOString(), ...state };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `cgpa-tracker-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('Backup downloaded.');
+}
+function importData(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const next = normalize(JSON.parse(r.result));
+      next.theme = state.theme;
+      withUndo(`Imported ${next.semesters.length} semester${next.semesters.length === 1 ? '' : 's'}`, () => { state = next; });
+      if ($('#settings').open) $('#settings').close();
+    } catch (err) {
+      toast(`Couldn't import: ${err.message || 'invalid JSON file'}`);
+    }
+  };
+  r.onerror = () => toast('Couldn\'t read that file.');
+  r.readAsText(file);
+}
+$('#export-btn').addEventListener('click', exportData);
+$('#dlg-export').addEventListener('click', exportData);
+$('#import-btn').addEventListener('click', () => $('#import-file').click());
+$('#dlg-import').addEventListener('click', () => $('#import-file').click());
+$('#import-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importData(f); e.target.value = ''; });
+
+/* ============================================================ SETTINGS (GRADE SCALE) */
+const dlg = $('#settings');
+function scaleRowHTML(g) {
+  const L = esc(g?.letter ?? ''), orig = g ? ` data-orig="${L}"` : '';
+  return `<li class="scale-row">
+    <input class="input sl" value="${L}"${orig} maxlength="4" aria-label="Grade letter" autocomplete="off">
+    <input class="input sp" type="number" inputmode="decimal" min="0" max="4" step="0.01" value="${g ? g.points.toFixed(2) : ''}" aria-label="Points for ${L || 'new grade'}">
+    <button class="icon-btn" type="button" data-rm aria-label="Remove grade ${L || 'row'}">✕</button>
+  </li>`;
+}
+function openSettings() {
+  $('#scale-rows').innerHTML = state.scale.map(scaleRowHTML).join('');
+  $('#scale-err').hidden = true;
+  dlg.showModal();
+  dlg.querySelector('.sl')?.focus();
+}
+$('#open-settings').addEventListener('click', openSettings);
+dlg.addEventListener('click', e => {
+  if (e.target === dlg) dlg.close(); // click on backdrop
+  if (e.target.closest('[data-close]')) dlg.close();
+  const rm = e.target.closest('[data-rm]');
+  if (rm) {
+    const li = rm.closest('li'), next = li.nextElementSibling || li.previousElementSibling;
+    li.remove();
+    (next?.querySelector('.sl') || $('#scale-add')).focus();
+  }
+});
+$('#scale-add').addEventListener('click', () => {
+  $('#scale-rows').insertAdjacentHTML('beforeend', scaleRowHTML(null));
+  $('#scale-rows').lastElementChild.classList.add('enter');
+  $('#scale-rows').lastElementChild.querySelector('.sl').focus();
+});
+$('#scale-reset').addEventListener('click', () => {
+  // keep links to existing letters so subjects follow renames where possible
+  $('#scale-rows').innerHTML = DEFAULT_SCALE.map(g => scaleRowHTML(g)).join('');
+  $('#scale-rows').querySelectorAll('.sl').forEach(i => { if (!state.scale.some(g => g.letter === i.value)) i.removeAttribute('data-orig'); });
+});
+$('#scale-save').addEventListener('click', () => {
+  const err = $('#scale-err');
+  const rows = [...$('#scale-rows').children].map(li => ({ li, letter: li.querySelector('.sl').value.trim(), raw: li.querySelector('.sp').value, orig: li.querySelector('.sl').dataset.orig }));
+  const bad = m => { err.textContent = m; err.hidden = false; };
+  if (!rows.length) return bad('Keep at least one grade.');
+  const seen = new Set();
+  for (const r of rows) {
+    const p = parseFloat(r.raw);
+    if (!r.letter) { r.li.querySelector('.sl').focus(); return bad('Every grade needs a letter.'); }
+    if (seen.has(r.letter)) { r.li.querySelector('.sl').focus(); return bad(`"${r.letter}" appears twice.`); }
+    if (!(p >= 0 && p <= 4)) { r.li.querySelector('.sp').focus(); return bad(`Points for "${r.letter}" must be between 0 and 4.00.`); }
+    seen.add(r.letter); r.points = Math.round(p * 100) / 100;
+  }
+  const rename = new Map(rows.filter(r => r.orig).map(r => [r.orig, r.letter]));
+  const removed = state.scale.map(g => g.letter).filter(l => !rename.has(l));
+  const affected = state.semesters.reduce((a, m) => a + m.subjects.filter(s => removed.includes(s.grade)).length, 0);
+  if (affected && !confirm(`${affected} subject${affected === 1 ? ' uses' : 's use'} a grade you removed (${removed.join(', ')}). ${affected === 1 ? 'It' : 'They'} will show as "not in scale" until you pick a new grade. Continue?`)) return;
+  withUndo('Grade scale saved', () => {
+    const map = l => (l != null && rename.has(l)) ? rename.get(l) : l;
+    state.semesters.forEach(m => m.subjects.forEach(s => { s.grade = map(s.grade); s.target = map(s.target); }));
+    state.scale = rows.map(r => ({ letter: r.letter.slice(0, 4), points: r.points })).sort((a, b) => b.points - a.points);
+  });
+  dlg.close();
+});
+$('#clear-all').addEventListener('click', () => {
+  if (!state.semesters.length) { toast('Nothing to clear.'); return; }
+  dlg.close();
+  withUndo('All semesters cleared', () => { state.semesters = []; });
+  $('#toast-undo').focus();
+});
+
+$('#toast-undo').addEventListener('click', undo);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && undoSnap && !$('#toast').hidden) {
+    const a = document.activeElement;
+    if (a && a.tagName === 'INPUT' && a.value) return; // let inputs with text keep native undo
+    e.preventDefault(); undo();
+  }
+});
+
+/* ============================================================ SAMPLE DATA */
+function loadSample() {
+  const S = (name, credits, grade) => ({ id: uid(), name, credits, grade, target: null });
+  state.semesters = [
+    { id: uid(), name: 'Year 1 · Sem 1', planned: false, subjects: [S('Engineering Mathematics I', 4, 'A-'), S('Circuit Theory', 4, 'B+'), S('Programming for Engineers', 3, 'A'), S('Engineering Physics', 3, 'B'), S('Technical Communication', 2, 'A')] },
+    { id: uid(), name: 'Year 1 · Sem 2', planned: false, subjects: [S('Engineering Mathematics II', 4, 'B+'), S('Electronic Devices', 4, 'A-'), S('Digital Logic Design', 3, 'A'), S('Electromagnetics', 3, 'B-'), S('Engineering Drawing', 2, 'B+')] },
+    { id: uid(), name: 'Year 2 · Sem 1', planned: false, subjects: [S('Signals & Systems', 4, 'B'), S('Analog Electronics', 4, 'A-'), S('Electrical Machines', 3, 'B+'), S('Microcontrollers', 3, 'A'), S('Probability & Statistics', 3, 'A-')] },
+    { id: uid(), name: 'Year 2 · Sem 2', planned: true, subjects: [S('Control Systems', 4, null), S('Power Systems', 4, null), S('Communication Systems', 3, null), S('Embedded Systems Lab', 2, null), S('Engineering Economics', 3, null)] }
+  ];
+  state.semesters.forEach(m => justAdded.add(m.id));
+  commit();
+  toast('Sample data loaded. Edit anything, or clear it from Grade scale → Your data.');
+}
+
+/* ============================================================ BOOT */
+applyTheme();
+renderAll();
+watchCharts();
+})();
+</script>
+</body>
+</html>
