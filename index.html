@@ -425,6 +425,18 @@ dialog[open] { animation: pop .25s cubic-bezier(.2,.9,.3,1.3); }
 .dlg-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .dlg-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; border-top: var(--bw) solid var(--ink); background: var(--surface-2); }
 .scale-err { color: var(--danger); font-weight: 600; }
+.sync-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--ink); background: var(--surface); flex: none; }
+#account-btn[data-sync="off"] .sync-dot { display: none; }
+#account-btn[data-sync="saved"] .sync-dot { background: var(--mint); }
+#account-btn[data-sync="saving"] .sync-dot, #account-btn[data-sync="pending"] .sync-dot { background: var(--yellow); animation: pulse 1s ease-in-out infinite; }
+#account-btn[data-sync="error"] .sync-dot, #account-btn[data-sync="offline"] .sync-dot { background: var(--pink); }
+@keyframes pulse { 50% { transform: scale(.6); } }
+.seg { display: flex; gap: 10px; flex-wrap: wrap; }
+.seg .btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.auth { display: grid; gap: 12px; }
+.auth-msg { font-weight: 600; padding: 10px 12px; border: 2px solid var(--ink); border-radius: var(--r-sm); background: var(--surface-2); }
+.auth-msg.bad { border-color: var(--danger); color: var(--danger); }
+.stack { display: grid; gap: 10px; }
 hr.thick { border: 0; border-top: var(--bw) solid var(--ink); margin: 6px 0; width: 100%; }
 
 /* ============================================================ MOTION */
@@ -493,6 +505,7 @@ hr.thick { border: 0; border-top: var(--bw) solid var(--ink); margin: 6px 0; wid
       <span class="logo-word">CGPA&nbsp;Tracker</span>
     </a>
     <nav class="tools" aria-label="App tools">
+      <button class="btn sm" id="account-btn" type="button" data-sync="off" hidden><span aria-hidden="true">☁</span><span class="lbl">Sign in</span><span class="sr">Sign in to sync your data</span><span class="sync-dot" aria-hidden="true"></span></button>
       <button class="btn sm" id="open-settings" type="button"><span aria-hidden="true">⚙</span><span class="lbl">Grade scale</span><span class="sr">Open grade scale and data settings</span></button>
       <button class="btn sm" id="export-btn" type="button"><span aria-hidden="true">↓</span><span class="lbl">Export</span><span class="sr">Export data as JSON</span></button>
       <button class="btn sm" id="import-btn" type="button"><span aria-hidden="true">↑</span><span class="lbl">Import</span><span class="sr">Import data from JSON</span></button>
@@ -642,6 +655,45 @@ hr.thick { border: 0; border-top: var(--bw) solid var(--ink); margin: 6px 0; wid
 <div class="toast" id="toast" role="status" hidden><span id="toast-msg"></span><button class="btn sm" type="button" id="toast-undo">Undo</button></div>
 <div class="sr" aria-live="polite" id="announce"></div>
 
+<dialog id="account" aria-labelledby="acct-h">
+  <div class="dlg-head"><h2 id="acct-h">Your account</h2><button class="icon-btn" type="button" data-close aria-label="Close account panel">✕</button></div>
+  <div class="dlg-body" id="acct-out">
+    <p class="hint">Accounts are optional. Sign in to keep your data in your account and open it on any device. Without one, your data stays in this browser only.</p>
+    <div class="seg" role="group" aria-label="Sign in or create an account">
+      <button class="btn sm" type="button" id="mode-signin" aria-pressed="true">Sign in</button>
+      <button class="btn sm" type="button" id="mode-signup" aria-pressed="false">Create account</button>
+    </div>
+    <form class="auth" id="auth-form" novalidate>
+      <div class="field"><label for="auth-email">Email</label><input class="input" id="auth-email" type="email" autocomplete="email" inputmode="email" required></div>
+      <div class="field"><label for="auth-pass">Password</label><input class="input" id="auth-pass" type="password" autocomplete="current-password" minlength="6" required aria-describedby="auth-pass-hint"><span class="hint" id="auth-pass-hint">At least 6 characters.</span></div>
+      <p class="auth-msg" id="auth-msg" role="alert" hidden></p>
+      <button class="btn yellow" type="submit" id="auth-submit">Sign in</button>
+      <button class="btn sm ghost" type="button" id="auth-link">Forgot your password? Email me a sign-in link</button>
+    </form>
+  </div>
+  <div class="dlg-body" id="acct-in" hidden>
+    <p>Signed in as <b id="acct-email"></b></p>
+    <p class="auth-msg" id="acct-status" aria-live="polite"></p>
+    <p class="hint">Changes save to your account automatically. Signing out removes your data from this browser, but it stays safe in your account.</p>
+    <div class="dlg-actions">
+      <button class="btn sm mint" type="button" id="sync-now">Sync now</button>
+      <button class="btn sm ghost danger" type="button" id="sign-out">Sign out</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="merge" aria-labelledby="merge-h">
+  <div class="dlg-head"><h2 id="merge-h">Which data should we keep?</h2></div>
+  <div class="dlg-body">
+    <p id="merge-text"></p>
+    <div class="stack">
+      <button class="btn mint" type="button" id="merge-cloud">Use my account's data</button>
+      <button class="btn" type="button" id="merge-local">Replace my account with this browser's data</button>
+      <button class="btn sm ghost" type="button" id="merge-download">↓ Download this browser's data first</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="settings" aria-labelledby="set-h">
   <div class="dlg-head"><h2 id="set-h">Grade scale</h2><button class="icon-btn" type="button" data-close aria-label="Close settings">✕</button></div>
   <div class="dlg-body">
@@ -672,6 +724,16 @@ hr.thick { border: 0; border-top: var(--bw) solid var(--ink); margin: 6px 0; wid
 <script>
 (() => {
 'use strict';
+
+/* ============================================================ ACCOUNTS (optional)
+   Paste your Supabase project URL and anon / publishable key to turn on logins and
+   cloud sync. Leave them blank and the app stays browser-only. Both values are safe
+   in a public page: Row Level Security (supabase/setup.sql) limits every user to
+   their own row. Never paste the service_role / secret key here. */
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
+const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js';
+const TABLE = 'tracker_data';
 
 /* ============================================================ STATE */
 const KEY = 'cgpa-tracker:v1';
@@ -731,14 +793,25 @@ function load() {
   return defaultState();
 }
 let state = load();
+const META_KEY = 'cgpa-tracker:sync';
+function loadMeta() {
+  try { const m = JSON.parse(localStorage.getItem(META_KEY) || 'null'); if (m && typeof m === 'object') return { owner: m.owner || null, syncedAt: m.syncedAt || null, dirty: !!m.dirty }; } catch (e) {}
+  return { owner: null, syncedAt: null, dirty: false };
+}
+// Sync bookkeeping. meta.owner = the account this browser's data belongs to (null = guest data).
+const cloud = { sb: null, user: null, meta: loadMeta(), timer: null, pushing: false, again: false, seq: 0, lastJSON: null, paused: false, signingOut: false, status: 'off' };
+const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const setSaveNote = t => { $('#saved-note').textContent = t; };
+
 let saveWarned = false;
 function save() {
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
-    $('#saved-note').textContent = `Saved in this browser at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Export a backup now and then.`;
+    if (!cloud.user) setSaveNote(`Saved in this browser at ${clock()}. Export a backup now and then.`);
   } catch (e) {
     if (!saveWarned) { saveWarned = true; toast('This browser blocked saving. Export a JSON backup so you don\'t lose anything.'); }
   }
+  cloudChanged();
 }
 
 const findSem = id => state.semesters.find(m => m.id === id);
@@ -1543,10 +1616,298 @@ function loadSample() {
   toast('Sample data loaded. Edit anything, or clear it from Grade scale → Your data.');
 }
 
+/* ============================================================ ACCOUNTS + CLOUD SYNC */
+const cloudPayload = () => { const { theme, ...rest } = state; return rest; }; // theme stays per device
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(cloud.meta)); } catch (e) {} }
+
+const SYNC_TEXT = {
+  pending: 'Unsaved changes…', saving: 'Saving to your account…', saved: 'Synced to your account',
+  error: 'Couldn\'t reach your account. Retrying soon.', offline: 'You\'re offline. Changes will sync when you reconnect.'
+};
+function setSync(s, detail) {
+  cloud.status = s;
+  $('#account-btn').dataset.sync = s;
+  if (s === 'off') return;
+  const t = s === 'saved' ? `Synced to your account at ${clock()}.` : SYNC_TEXT[s] + (detail && s === 'error' ? ` (${detail})` : '');
+  setSaveNote(t);
+  $('#acct-status').textContent = t;
+}
+
+function cloudChanged() {
+  if (!cloud.user || cloud.paused) return;
+  if (JSON.stringify(cloudPayload()) === cloud.lastJSON) return; // e.g. only the theme changed
+  cloud.seq++;
+  cloud.meta.dirty = true; saveMeta();
+  setSync('pending');
+  clearTimeout(cloud.timer);
+  cloud.timer = setTimeout(push, 1200);
+}
+
+async function push() {
+  if (!cloud.user || cloud.paused) return false;
+  if (cloud.pushing) { cloud.again = true; return false; }
+  clearTimeout(cloud.timer);
+  cloud.pushing = true; setSync('saving');
+  const seq = cloud.seq, payload = cloudPayload(), uidNow = cloud.user.id;
+  let res;
+  try { res = await cloud.sb.from(TABLE).upsert({ user_id: uidNow, data: payload }).select('updated_at').single(); }
+  catch (e) { res = { error: e }; }
+  cloud.pushing = false;
+  if (!cloud.user || cloud.user.id !== uidNow) return false; // signed out mid-flight
+  if (res.error) {
+    setSync(navigator.onLine ? 'error' : 'offline', res.error.message);
+    cloud.timer = setTimeout(push, 15000);
+    return false;
+  }
+  cloud.lastJSON = JSON.stringify(payload);
+  cloud.meta.owner = uidNow;
+  cloud.meta.syncedAt = res.data.updated_at;
+  if (seq === cloud.seq) cloud.meta.dirty = false;
+  saveMeta();
+  if (cloud.again || cloud.meta.dirty) { cloud.again = false; cloud.timer = setTimeout(push, 300); }
+  else setSync('saved');
+  return true;
+}
+
+async function fetchRemote() {
+  const { data, error } = await cloud.sb.from(TABLE).select('data, updated_at').eq('user_id', cloud.user.id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function applyRemote(remote) {
+  let next;
+  try { next = normalize(remote.data); } catch (e) { setSync('error', 'your saved data could not be read'); return false; }
+  next.theme = state.theme;
+  state = next;
+  undoSnap = null; hideToast();
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  cloud.lastJSON = JSON.stringify(cloudPayload());
+  cloud.meta = { owner: cloud.user.id, syncedAt: remote.updated_at, dirty: false };
+  saveMeta();
+  renderAll();
+  setSync('saved');
+  return true;
+}
+
+const semSig = sems => JSON.stringify(sems.map(m => [m.name, m.subjects.map(s => [s.name, s.credits, s.grade])]));
+async function firstSync() {
+  setSync('saving');
+  let remote;
+  try { remote = await fetchRemote(); } catch (e) { setSync('error', e.message); return; }
+  const mine = cloud.meta.owner === cloud.user.id;
+  const localHas = state.semesters.length > 0;
+  if (!remote) {                                   // brand-new account: upload whatever is here
+    cloud.meta.owner = cloud.user.id; cloud.meta.dirty = true; cloud.seq++; saveMeta();
+    await push();
+    if (localHas) toast('This browser\'s data is now saved to your account.');
+    return;
+  }
+  if (mine) { if (cloud.meta.dirty) await push(); else applyRemote(remote); return; }
+  let remoteSig = null;
+  try { remoteSig = semSig(normalize(remote.data).semesters); } catch (e) {}
+  if (!localHas || remoteSig === semSig(state.semesters)) { applyRemote(remote); return; }
+  openMerge(remote);                               // guest data here AND different data in the account
+}
+
+function openMerge(remote) {
+  cloud.paused = true;
+  let n = 0; try { n = normalize(remote.data).semesters.length; } catch (e) {}
+  const when = remote.updated_at ? new Date(remote.updated_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'earlier';
+  const here = state.semesters.length;
+  $('#merge-text').textContent = `This browser has ${here} semester${here === 1 ? " that isn't" : "s that aren't"} in your account. Your account has ${n} semester${n === 1 ? '' : 's'}, last saved ${when}. Pick one to keep.`;
+  const d = $('#merge');
+  d._remote = remote;
+  d.showModal();
+  $('#merge-cloud').focus();
+}
+$('#merge').addEventListener('cancel', e => e.preventDefault()); // a choice is required
+$('#merge-download').addEventListener('click', exportData);
+$('#merge-cloud').addEventListener('click', () => {
+  const d = $('#merge'), snap = JSON.stringify(state);
+  cloud.paused = false; d.close();
+  if (applyRemote(d._remote)) {
+    undoSnap = snap; // undo puts this browser's data back (and syncs it)
+    toast('Loaded your account\'s data.', true);
+  }
+});
+$('#merge-local').addEventListener('click', () => {
+  cloud.paused = false; $('#merge').close();
+  cloud.meta.owner = cloud.user.id; cloud.meta.dirty = true; cloud.seq++; saveMeta();
+  push().then(ok => { if (ok) toast('Your account now has this browser\'s data.'); });
+});
+
+function onSignedOut() {
+  const intentional = cloud.signingOut;
+  cloud.signingOut = false;
+  clearTimeout(cloud.timer);
+  cloud.user = null; cloud.lastJSON = null; cloud.paused = false;
+  if ($('#merge').open) $('#merge').close();
+  if (intentional) {                               // wipe this browser's copy; it lives in the account
+    const theme = state.theme;
+    state = defaultState(); state.theme = theme;
+    undoSnap = null;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    cloud.meta = { owner: null, syncedAt: null, dirty: false }; saveMeta();
+    renderAll();
+  }
+  setSync('off');
+  setSaveNote(intentional ? 'Signed out. Your data is safe in your account.' : 'Signed out. Your data is still in this browser. Sign in again to keep syncing.');
+  renderAccount();
+  toast(intentional ? 'Signed out. Your data is safe in your account.' : 'You were signed out. Sign in again to keep syncing.');
+}
+
+async function handleAuth(session) {
+  const u = session?.user || null;
+  if (u && (!cloud.user || cloud.user.id !== u.id)) {
+    cloud.user = u; renderAccount();
+    if ($('#account').open) $('#account').close();
+    await firstSync();
+  } else if (u) {
+    cloud.user = u; renderAccount();               // token refresh, email change, etc.
+  } else if (cloud.user) {
+    onSignedOut();
+  } else {
+    renderAccount();
+  }
+}
+
+function renderAccount() {
+  const u = cloud.user, btn = $('#account-btn');
+  btn.querySelector('.lbl').textContent = u ? 'Account' : 'Sign in';
+  btn.querySelector('.sr').textContent = u ? `Account, signed in as ${u.email}` : 'Sign in to sync your data';
+  $('#acct-out').hidden = !!u;
+  $('#acct-in').hidden = !u;
+  $('#acct-h').textContent = u ? 'Your account' : 'Sign in';
+  if (u) { $('#acct-email').textContent = u.email || 'your account'; $('#acct-status').textContent = SYNC_TEXT[cloud.status] || ''; }
+}
+
+let authMode = 'signin';
+function setAuthMode(m) {
+  authMode = m;
+  $('#mode-signin').setAttribute('aria-pressed', String(m === 'signin'));
+  $('#mode-signup').setAttribute('aria-pressed', String(m === 'signup'));
+  $('#auth-submit').textContent = m === 'signin' ? 'Sign in' : 'Create account';
+  $('#auth-pass').autocomplete = m === 'signin' ? 'current-password' : 'new-password';
+  $('#auth-link').hidden = m !== 'signin';
+  authMsg('');
+}
+function authMsg(t, bad = false) {
+  const p = $('#auth-msg');
+  p.hidden = !t; p.textContent = t; p.classList.toggle('bad', bad);
+}
+function friendly(err) {
+  const m = String(err?.message || err || 'Something went wrong.');
+  if (/invalid login credentials/i.test(m)) return 'Wrong email or password.';
+  if (/email not confirmed/i.test(m)) return 'Confirm your email first. Check your inbox for the link.';
+  if (/signups not allowed/i.test(m)) return 'No account with that email yet. Use "Create account" instead.';
+  if (/rate limit|too many/i.test(m)) return 'Too many attempts. Wait a few minutes and try again.';
+  if (/not authorized/i.test(m)) return 'This site can\'t send emails to that address yet. Sign in with your password instead.';
+  if (/failed to fetch|network/i.test(m)) return 'Couldn\'t connect. Check your internet and try again.';
+  return m;
+}
+const redirectUrl = () => location.origin + location.pathname;
+const validEmail = e => /^\S+@\S+\.\S+$/.test(e);
+
+$('#mode-signin').addEventListener('click', () => setAuthMode('signin'));
+$('#mode-signup').addEventListener('click', () => setAuthMode('signup'));
+$('#account-btn').addEventListener('click', () => {
+  if (!cloud.sb) { toast('Sign-in is still loading. Try again in a moment.'); return; }
+  renderAccount();
+  $('#account').showModal();
+  (cloud.user ? $('#sync-now') : $('#auth-email')).focus();
+});
+$('#account').addEventListener('click', e => {
+  if (e.target === $('#account') || e.target.closest('[data-close]')) $('#account').close();
+});
+$('#auth-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = $('#auth-email').value.trim(), password = $('#auth-pass').value;
+  if (!validEmail(email)) { $('#auth-email').focus(); return authMsg('Enter a valid email address.', true); }
+  if (password.length < 6) { $('#auth-pass').focus(); return authMsg('Passwords need at least 6 characters.', true); }
+  const btn = $('#auth-submit');
+  btn.disabled = true; authMsg(authMode === 'signin' ? 'Signing in…' : 'Creating your account…');
+  let res;
+  try {
+    res = authMode === 'signin'
+      ? await cloud.sb.auth.signInWithPassword({ email, password })
+      : await cloud.sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectUrl() } });
+  } catch (err) { res = { error: err }; }
+  btn.disabled = false;
+  if (res.error) return authMsg(friendly(res.error), true);
+  $('#auth-pass').value = '';
+  if (authMode === 'signup' && !res.data?.session) {
+    setAuthMode('signin');
+    return authMsg('Almost there. Open the confirmation link we just emailed you, then sign in here.');
+  }
+  authMsg('');
+});
+$('#auth-link').addEventListener('click', async () => {
+  const email = $('#auth-email').value.trim();
+  if (!validEmail(email)) { $('#auth-email').focus(); return authMsg('Type your email above first.', true); }
+  authMsg('Sending…');
+  let res;
+  try { res = await cloud.sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl(), shouldCreateUser: false } }); }
+  catch (err) { res = { error: err }; }
+  if (res.error) return authMsg(friendly(res.error), true);
+  authMsg('Check your inbox. The link signs you straight in.');
+});
+$('#sync-now').addEventListener('click', async () => {
+  if (cloud.meta.dirty) { await push(); return; }
+  setSync('saving');
+  try {
+    const r = await fetchRemote();
+    if (r && r.updated_at !== cloud.meta.syncedAt) { applyRemote(r); toast('Pulled the latest data from your account.'); }
+    else if (!r) { cloud.meta.dirty = true; cloud.seq++; await push(); }
+    else setSync('saved');
+  } catch (e) { setSync('error', e.message); }
+});
+$('#sign-out').addEventListener('click', async () => {
+  if (cloud.meta.dirty && !(await push()) && !confirm('Some changes haven\'t reached your account yet. Sign out anyway and lose them?')) return;
+  cloud.signingOut = true;
+  $('#account').close();
+  try { await cloud.sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  if (cloud.user) onSignedOut(); // in case the auth event didn't fire
+});
+
+// Pull changes made on another device when you come back to this tab; flush when leaving.
+document.addEventListener('visibilitychange', async () => {
+  if (!cloud.user || cloud.paused) return;
+  if (document.visibilityState === 'hidden') { if (cloud.meta.dirty) push(); return; }
+  if (cloud.pushing || cloud.meta.dirty) return;
+  try {
+    const r = await fetchRemote();
+    if (r && r.updated_at !== cloud.meta.syncedAt && !cloud.meta.dirty && !cloud.pushing) { applyRemote(r); toast('Updated with changes from another device.'); }
+  } catch (e) {}
+});
+addEventListener('online', () => { if (cloud.user && cloud.meta.dirty) push(); });
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load the sign-in library.'));
+    document.head.appendChild(s);
+  });
+}
+async function initCloud() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;      // browser-only mode
+  $('#account-btn').hidden = false;
+  try {
+    await loadScript(SUPABASE_JS);
+    cloud.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // Supabase warns against awaiting its own calls inside this callback, so defer the work.
+    cloud.sb.auth.onAuthStateChange((_event, session) => { setTimeout(() => handleAuth(session), 0); });
+  } catch (e) {
+    $('#account-btn').hidden = true;
+    console.warn(e);
+  }
+}
+
 /* ============================================================ BOOT */
 applyTheme();
 renderAll();
 watchCharts();
+initCloud();
 })();
 </script>
 </body>
