@@ -324,10 +324,10 @@ section.block { margin-top: 64px; }
 
 .rows-head, .row, .add {
   display: grid; gap: 8px; align-items: center;
-  grid-template-columns: minmax(0, 1fr) 4.6rem 7rem 44px;
+  grid-template-columns: minmax(0, 1fr) 4.6rem 4.8rem 7.5rem 44px;
 }
-body.whatif-on .rows-head, body.whatif-on .row { grid-template-columns: minmax(0, 1fr) 4.6rem 7rem 7rem 44px; }
-.add { grid-template-columns: minmax(0, 1fr) 4.6rem 10.5rem auto; }
+body.whatif-on .rows-head, body.whatif-on .row { grid-template-columns: minmax(0, 1fr) 4.6rem 4.8rem 7.5rem 7.5rem 44px; }
+.add { grid-template-columns: minmax(0, 1fr) 4.6rem 5.8rem 9.5rem auto; }
 .rows-head { font-family: var(--font-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 0 8px 6px; }
 .rows-head .th-target { display: none; }
 body.whatif-on .rows-head .th-target { display: block; }
@@ -419,7 +419,7 @@ dialog[open] { animation: pop .25s cubic-bezier(.2,.9,.3,1.3); }
 .dlg-head h2 { font-size: 1.8rem; font-weight: 800; color: #111; }
 .dlg-head .icon-btn { color: #111; }
 .dlg-body { padding: 18px; display: grid; gap: 14px; }
-.scale-head, .scale-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 44px; gap: 10px; align-items: center; }
+.scale-head, .scale-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px; gap: 10px; align-items: center; }
 .scale-head { font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 #scale-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .dlg-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -479,12 +479,14 @@ hr.thick { border: 0; border-top: var(--bw) solid var(--ink); margin: 6px 0; wid
   .ch-gpa { width: 100%; display: flex; align-items: baseline; gap: .6rem; text-align: left; }
   .ch-gpa em { margin-left: auto; }
   .rows-head { display: none !important; }
-  .row, body.whatif-on .row { grid-template-columns: 4rem minmax(0,1fr) 44px; gap: 6px; padding: 6px; }
-  body.whatif-on .row { grid-template-columns: 3.2rem minmax(0,1fr) minmax(0,1fr) 40px; }
+  .row, body.whatif-on .row { grid-template-columns: 3.6rem 4.2rem minmax(0,1fr) 40px; gap: 6px; padding: 6px; }
+  body.whatif-on .row .tg-wrap { grid-column: 1 / -1; order: 1; }
+  body.whatif-on .row:not(.pending) .tg-wrap { display: none; }
   .row .sel select { padding: .4rem 1.5rem .4rem .5rem; font-size: .92rem; }
   .row .sel::after { right: .6rem; }
   .row .name { grid-column: 1 / -1; }
-  .add { grid-template-columns: 4.6rem minmax(0,1fr) auto; }
+  .add { grid-template-columns: 3.8rem 4.8rem minmax(0,1fr); }
+  .add .btn { grid-column: 1 / -1; }
   .add .name-in { grid-column: 1 / -1; }
   .add-sem { padding-left: 0; }
   .add-sem .btn { flex: 1 1 100%; }
@@ -697,8 +699,8 @@ hr.thick { border: 0; border-top: var(--bw) solid var(--ink); margin: 6px 0; wid
 <dialog id="settings" aria-labelledby="set-h">
   <div class="dlg-head"><h2 id="set-h">Grade scale</h2><button class="icon-btn" type="button" data-close aria-label="Close settings">✕</button></div>
   <div class="dlg-body">
-    <p class="hint">Points from 0 to 4.00. Rename a letter and every subject using it follows along.</p>
-    <div class="scale-head" aria-hidden="true"><span>Grade</span><span>Points</span><span></span></div>
+    <p class="hint">Points from 0 to 4.00. <b>Min marks</b> is the lowest mark for that grade, so typing a mark picks the grade for you. Letters can repeat (like the three F bands). Rename a letter and every subject using it follows along.</p>
+    <div class="scale-head" aria-hidden="true"><span>Grade</span><span>Min marks</span><span>Points</span><span></span></div>
     <ol id="scale-rows"></ol>
     <p class="scale-err" id="scale-err" role="alert" hidden></p>
     <div class="dlg-actions">
@@ -737,12 +739,20 @@ const TABLE = 'tracker_data';
 
 /* ============================================================ STATE */
 const KEY = 'cgpa-tracker:v1';
-// Default scale. Edit in the app (Grade scale button) or change it here.
+// Default scale: [key, letter, grade points, minimum marks]. Edit in the app (Grade scale button) or here.
+// The key is an internal id that subjects point to, so several rows can share a letter (the three F bands).
 const DEFAULT_SCALE = [
-  ['A', 4.00], ['A-', 3.67], ['B+', 3.33], ['B', 3.00], ['B-', 2.67],
-  ['C+', 2.33], ['C', 2.00], ['C-', 1.67], ['D+', 1.33], ['D', 1.00], ['F', 0.00]
-].map(([letter, points]) => ({ letter, points }));
+  ['A+', 'A+', 4.00, 80], ['A', 'A', 3.75, 75], ['A-', 'A-', 3.50, 70],
+  ['B+', 'B+', 3.25, 65], ['B', 'B', 3.00, 60], ['B-', 'B-', 2.75, 55],
+  ['C', 'C', 2.50, 50], ['C-', 'C-', 2.25, 45], ['D', 'D', 2.00, 40],
+  ['F-30', 'F', 1.50, 30], ['F-20', 'F', 1.00, 20], ['F', 'F', 0.00, 0]
+].map(([key, letter, points, min]) => ({ key, letter, points, min }));
+// The scale this app shipped with before marks existed. Saved data still on it moves to the default above.
+const OLD_DEFAULT = 'A:4|A-:3.67|B+:3.33|B:3|B-:2.67|C+:2.33|C:2|C-:1.67|D+:1.33|D:1|F:0';
 const MAX_CREDITS = 30;
+const MAX_MARKS = 100;
+const byPoints = (a, b) => b.points - a.points || (b.min ?? -1) - (a.min ?? -1);
+const num = v => (v === null || v === undefined || v === '' || !isFinite(parseFloat(v))) ? null : parseFloat(v);
 
 const $ = s => document.querySelector(s);
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -764,9 +774,15 @@ function normalize(d) {
     const seen = new Set();
     const sc = d.scale
       .filter(g => g && String(g.letter ?? '').trim() && isFinite(parseFloat(g.points)))
-      .map(g => ({ letter: String(g.letter).trim().slice(0, 4), points: clamp(parseFloat(g.points), 0, 4) }))
-      .filter(g => !seen.has(g.letter) && seen.add(g.letter));
-    if (sc.length) s.scale = sc.sort((a, b) => b.points - a.points);
+      .map(g => ({
+        key: String(g.key ?? g.letter).trim().slice(0, 24),
+        letter: String(g.letter).trim().slice(0, 4),
+        points: clamp(parseFloat(g.points), 0, 4),
+        min: num(g.min) == null ? null : clamp(num(g.min), 0, MAX_MARKS)
+      }))
+      .filter(g => !seen.has(g.key) && seen.add(g.key));
+    const untouchedOld = !d.scale.some(g => g && ('key' in g || 'min' in g)) && sc.map(g => `${g.letter}:${g.points}`).join('|') === OLD_DEFAULT;
+    if (sc.length && !untouchedOld) s.scale = sc.sort(byPoints);
   }
   const grade = g => (g == null || g === '') ? null : String(g);
   s.semesters = d.semesters.filter(m => m && typeof m === 'object').map((m, i) => ({
@@ -777,6 +793,7 @@ function normalize(d) {
       id: String(x.id || uid()),
       name: String(x.name || 'Untitled subject').slice(0, 80),
       credits: clamp(parseFloat(x.credits) || 0, 0, MAX_CREDITS),
+      marks: num(x.marks) == null ? null : clamp(num(x.marks), 0, MAX_MARKS),
       grade: grade(x.grade),
       target: grade(x.target)
     }))
@@ -816,18 +833,37 @@ function save() {
 
 const findSem = id => state.semesters.find(m => m.id === id);
 const findSub = id => { for (const m of state.semesters) { const s = m.subjects.find(x => x.id === id); if (s) return { sem: m, sub: s }; } return null; };
-const pmap = () => new Map(state.scale.map(g => [g.letter, g.points]));
-const tierOf = p => p == null ? 't-none' : p >= 3.67 ? 't-a' : p >= 2.67 ? 't-b' : p >= 1.67 ? 't-c' : 't-d';
+const pmap = () => new Map(state.scale.map(g => [g.key, g.points]));
+const tierOf = p => p == null ? 't-none' : p >= 3.5 ? 't-a' : p >= 2.75 ? 't-b' : p >= 2 ? 't-c' : 't-d';
+const gradeOf = key => state.scale.find(g => g.key === key) || null;
+// A letter on its own is ambiguous when several rows share it (F), so add the points there.
+const gradeLabel = g => state.scale.filter(x => x.letter === g.letter).length > 1 ? `${g.letter} (${g.points.toFixed(2)})` : g.letter;
+const gradeName = key => { const g = gradeOf(key); return g ? gradeLabel(g) : key; };
+const fmk = m => String(Math.round(m * 10) / 10);
+// Highest band whose minimum the mark reaches.
+function gradeForMarks(m) {
+  if (m == null) return null;
+  const bands = state.scale.filter(g => g.min != null).sort((a, b) => b.min - a.min);
+  return bands.find(g => m >= g.min - 1e-9)?.key ?? null;
+}
+// "80–100", "75–79": up to one below the next band's minimum.
+function markRange(g) {
+  if (g.min == null) return '';
+  const above = state.scale.filter(x => x.min != null && x.min > g.min).map(x => x.min);
+  const top = above.length ? Math.min(...above) - (Number.isInteger(g.min) && Number.isInteger(Math.min(...above)) ? 1 : 0) : MAX_MARKS;
+  return `${fmk(g.min)}–${fmk(top)}`;
+}
 
 /* ============================================================ MATH */
 function compute() {
   const pm = pmap();
   let C = 0, Q = 0, earned = 0, pC = 0, pQ = 0, graded = 0, total = 0;
-  const dist = new Map(state.scale.map(g => [g.letter, { n: 0, cr: 0 }]));
+  const dist = new Map(state.scale.map(g => [g.key, { n: 0, cr: 0 }]));
   const perSem = state.semesters.map(sem => {
-    let c = 0, q = 0, tc = 0, tq = 0, pending = 0;
+    let c = 0, q = 0, tc = 0, tq = 0, pending = 0, mSum = 0, mN = 0;
     for (const s of sem.subjects) {
       total++;
+      if (s.marks != null) { mSum += s.marks; mN++; }
       const g = s.grade != null && pm.has(s.grade) ? pm.get(s.grade) : null;
       if (g != null) {
         graded++; c += s.credits; q += g * s.credits;
@@ -841,7 +877,7 @@ function compute() {
     }
     C += c; Q += q; pC += c + tc; pQ += q + tq;
     return {
-      sem, credits: c, pending, gpa: c ? q / c : null,
+      sem, credits: c, pending, gpa: c ? q / c : null, avgMarks: mN ? mSum / mN : null,
       projGpa: (c + tc) ? (q + tq) / (c + tc) : null, hasProj: tc > 0,
       cgpa: C ? Q / C : null, projCgpa: pC ? pQ / pC : null
     };
@@ -895,7 +931,7 @@ let pendingScroll = null;
 function gradeOptions(selected, emptyLabel) {
   const pm = pmap();
   let html = `<option value="">${esc(emptyLabel)}</option>`;
-  for (const g of state.scale) html += `<option value="${esc(g.letter)}"${g.letter === selected ? ' selected' : ''}>${esc(g.letter)} · ${g.points.toFixed(2)}</option>`;
+  for (const g of state.scale) html += `<option value="${esc(g.key)}"${g.key === selected ? ' selected' : ''}>${esc(g.letter)} · ${g.points.toFixed(2)}</option>`;
   if (selected != null && !pm.has(selected)) html += `<option value="${esc(selected)}" selected>${esc(selected)} (not in scale)</option>`;
   return html;
 }
@@ -907,6 +943,7 @@ function rowHTML(s) {
   return `<li class="row${pending ? ' pending' : ''}${justAdded.has(id) ? ' enter' : ''}" data-sub="${id}">
     <input class="cell name" id="n-${id}" data-f="name" value="${nm}" maxlength="80" aria-label="Subject name" autocomplete="off">
     <input class="cell" id="c-${id}" data-f="credits" type="number" inputmode="decimal" min="0" max="${MAX_CREDITS}" step="0.5" value="${fcr(s.credits)}" aria-label="Credit hours for ${nm}">
+    <input class="cell" id="m-${id}" data-f="marks" type="number" inputmode="decimal" min="0" max="${MAX_MARKS}" step="0.5" value="${s.marks == null ? '' : fmk(s.marks)}" placeholder="–" aria-label="Marks out of 100 for ${nm}">
     <span class="sel ${selTier(s.grade)}"><select id="g-${id}" data-f="grade" aria-label="Grade for ${nm}">${gradeOptions(s.grade, 'Pending')}</select></span>
     <span class="tg-wrap"><span class="sel ${selTier(s.target)}"><select id="t-${id}" data-f="target" aria-label="What-if target grade for ${nm}">${gradeOptions(s.target, 'Target?')}</select></span></span>
     <button class="icon-btn" type="button" id="x-${id}" data-act="del-sub" aria-label="Delete ${nm}">✕</button>
@@ -927,12 +964,13 @@ function chapterHTML(sem, i, ps) {
         <div class="ch-gpa" id="gpa-${id}">${gpaBadge(ps)}</div>
       </header>
       ${sem.subjects.length ? `
-        <div class="rows-head" aria-hidden="true"><span>Subject</span><span>Credits</span><span>Grade</span><span class="th-target">Target</span><span></span></div>
+        <div class="rows-head" aria-hidden="true"><span>Subject</span><span>Credits</span><span>Marks</span><span>Grade</span><span class="th-target">Target</span><span></span></div>
         <ul class="rows" aria-label="Subjects in ${nm}">${sem.subjects.map(rowHTML).join('')}</ul>`
-      : `<p class="ch-empty"><b>No subjects yet.</b> Type a subject name, its credit hours and grade below, then press <kbd>Enter</kbd>. ${sem.planned ? 'Haven\'t got the grade yet? Leave it as "No grade yet" and fill it in later.' : ''}</p>`}
+      : `<p class="ch-empty"><b>No subjects yet.</b> Type a subject name, its credit hours and your marks (or pick a grade) below, then press <kbd>Enter</kbd>. ${sem.planned ? 'Haven\'t got the grade yet? Leave it as "No grade yet" and fill it in later.' : ''}</p>`}
       <form class="add" data-sem="${id}" novalidate>
         <input class="input name-in" id="an-${id}" name="sname" placeholder="Subject, e.g. Circuit Theory" maxlength="80" aria-label="New subject name" autocomplete="off">
         <input class="input" id="ac-${id}" name="scredits" type="number" inputmode="decimal" min="0" max="${MAX_CREDITS}" step="0.5" placeholder="3" value="${esc(draftCr)}" aria-label="Credit hours (blank means 3)">
+        <input class="input" id="am-${id}" name="smarks" type="number" inputmode="decimal" min="0" max="${MAX_MARKS}" step="0.5" placeholder="Marks" aria-label="Marks out of 100 (optional, fills in the grade)">
         <span class="sel t-none"><select id="ag-${id}" name="sgrade" aria-label="Grade (optional)">${gradeOptions(null, sem.planned ? 'No grade yet' : 'Grade…')}</select></span>
         <button class="btn yellow" type="submit" id="ab-${id}">Add <span aria-hidden="true">↵</span></button>
         <p class="add-err" id="ae-${id}" role="alert" hidden></p>
@@ -951,7 +989,8 @@ function gpaBadge(ps) {
   const v = proj ? ps.projGpa : ps.gpa;
   const label = proj ? 'Projected GPA' : 'Semester GPA';
   const cr = `${fcr(ps.credits)} cr graded${ps.pending ? ` · ${fcr(ps.pending)} pending` : ''}`;
-  return `<small>${label}</small><strong>${proj ? '~' : ''}${f2(v)}</strong><em>${cr}</em>`;
+  const mk = ps.avgMarks == null ? '' : `<em>Avg marks ${fmk(ps.avgMarks)}</em>`;
+  return `<small>${label}</small><strong>${proj ? '~' : ''}${f2(v)}</strong><em>${cr}</em>${mk}`;
 }
 
 function emptyHTML() {
@@ -960,7 +999,7 @@ function emptyHTML() {
     <h3>Your transcript starts here.</h3>
     <ol class="steps">
       <li><b>Add a semester.</b> One you've finished, or one coming up.</li>
-      <li><b>Add subjects.</b> Name, credit hours, grade. Press <kbd>Enter</kbd>.</li>
+      <li><b>Add subjects.</b> Name, credit hours, marks or grade. Press <kbd>Enter</kbd>.</li>
       <li><b>Watch it move.</b> Your CGPA, the plan and the charts update instantly.</li>
     </ol>
     <div class="empty-actions">
@@ -1231,7 +1270,7 @@ function table(head, rows) {
 function updateCharts(st) {
   const wi = state.whatIf;
   const linePts = st.perSem.filter(p => p.gpa != null || (wi && p.hasProj));
-  const distRows = state.scale.map(g => ({ g, d: st.dist.get(g.letter) }));
+  const distRows = state.scale.map(g => ({ g, d: st.dist.get(g.key) }));
   const credPts = st.perSem.filter(p => p.credits + p.pending > 0);
 
   $('#e-line').hidden = linePts.length > 0;
@@ -1239,7 +1278,7 @@ function updateCharts(st) {
   $('#e-cred').hidden = credPts.length > 0;
 
   $('#t-line').innerHTML = table(['Semester', 'GPA', 'CGPA'], linePts.map(p => [p.sem.name + (wi && p.hasProj ? ' (projected)' : ''), f2(wi ? p.projGpa : p.gpa), f2(wi ? p.projCgpa : p.cgpa)]));
-  $('#t-dist').innerHTML = table(['Grade', 'Subjects', 'Credits'], st.graded ? distRows.map(({ g, d }) => [g.letter, String(d.n), fcr(d.cr)]) : []);
+  $('#t-dist').innerHTML = table(['Grade', 'Marks', 'Subjects', 'Credits'], st.graded ? distRows.map(({ g, d }) => [gradeLabel(g), markRange(g) || '—', String(d.n), fcr(d.cr)]) : []);
   $('#t-cred').innerHTML = table(['Semester', 'Graded', 'Pending'], credPts.map(p => [p.sem.name, fcr(p.credits), fcr(p.pending)]));
 
   if (!chartsReady || !charts.line) return;
@@ -1253,7 +1292,7 @@ function updateCharts(st) {
   L.update();
 
   const D = charts.dist;
-  D.data.labels = distRows.map(r => r.g.letter);
+  D.data.labels = distRows.map(r => gradeLabel(r.g));
   D.data.datasets[0].data = distRows.map(r => r.d.n);
   D.data.datasets[0].info = distRows.map(r => r.d);
   D.update();
@@ -1276,7 +1315,7 @@ function watchCharts() {
 
 /* ============================================================ TICKER */
 function renderTicker() {
-  const items = state.scale.map(g => `<span><b>${esc(g.letter)}</b> = ${g.points.toFixed(2)}</span><span>✦</span>`).join('');
+  const items = state.scale.map(g => `<span><b>${esc(g.letter)}</b> ${markRange(g) ? esc(markRange(g)) + ' ' : ''}= ${g.points.toFixed(2)}</span><span>✦</span>`).join('');
   $('#ticker').innerHTML = items + items + items + items;
 }
 
@@ -1340,19 +1379,30 @@ root.addEventListener('submit', e => {
   const form = e.target.closest('form.add');
   if (!form) return;
   const sem = findSem(form.dataset.sem);
-  const nameEl = form.elements.namedItem('sname'), crEl = form.elements.namedItem('scredits'), grEl = form.elements.namedItem('sgrade');
+  const nameEl = form.elements.namedItem('sname'), crEl = form.elements.namedItem('scredits'), grEl = form.elements.namedItem('sgrade'), mkEl = form.elements.namedItem('smarks');
   const name = nameEl.value.trim();
-  nameEl.removeAttribute('aria-invalid'); crEl.removeAttribute('aria-invalid');
+  nameEl.removeAttribute('aria-invalid'); crEl.removeAttribute('aria-invalid'); mkEl.removeAttribute('aria-invalid');
   if (!name) { nameEl.setAttribute('aria-invalid', 'true'); setAddError(sem.id, 'Give the subject a name first.'); nameEl.focus(); return; }
   const cr = crEl.value.trim() === '' ? 3 : parseFloat(crEl.value);
   if (!(cr >= 0 && cr <= MAX_CREDITS)) { crEl.setAttribute('aria-invalid', 'true'); setAddError(sem.id, `Credit hours should be between 0 and ${MAX_CREDITS}.`); crEl.focus(); return; }
-  const sub = { id: uid(), name: name.slice(0, 80), credits: cr, grade: grEl.value || null, target: null };
+  const marks = num(mkEl.value);
+  if (mkEl.value.trim() !== '' && !(marks >= 0 && marks <= MAX_MARKS)) { mkEl.setAttribute('aria-invalid', 'true'); setAddError(sem.id, `Marks should be between 0 and ${MAX_MARKS}.`); mkEl.focus(); return; }
+  const sub = { id: uid(), name: name.slice(0, 80), credits: cr, marks, grade: grEl.value || gradeForMarks(marks) || null, target: null };
   sem.subjects.push(sub);
   drafts[sem.id] = crEl.value;
   justAdded.add(sub.id);
   pendingFocus = `an-${sem.id}`;
   commit();
-  announce(`Added ${sub.name}, ${fcr(cr)} credits${sub.grade ? `, grade ${sub.grade}` : ', no grade yet'}.`);
+  announce(`Added ${sub.name}, ${fcr(cr)} credits${marks != null ? `, ${fmk(marks)} marks` : ''}${sub.grade ? `, grade ${gradeName(sub.grade)}` : ', no grade yet'}.`);
+});
+
+// Typing marks in the quick-add row picks the matching grade straight away.
+root.addEventListener('input', e => {
+  if (e.target.name !== 'smarks') return;
+  const sel = e.target.form.elements.namedItem('sgrade');
+  const m = num(e.target.value), k = m != null && m >= 0 && m <= MAX_MARKS ? gradeForMarks(m) : null;
+  sel.value = k || '';
+  sel.parentElement.className = `sel ${k ? selTier(k) : 't-none'}`;
 });
 
 // Enter on the grade dropdown submits the quick-add row too.
@@ -1361,7 +1411,7 @@ root.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.matches('.cell, .ch-name') && e.target.tagName === 'INPUT') { e.preventDefault(); e.target.blur(); }
   if (e.key === 'Escape' && e.target.matches('.cell, .ch-name')) {
     const t = e.target, ref = t.dataset.f === 'sem-name' ? findSem(t.closest('[data-sem]').dataset.sem) : findSub(t.closest('[data-sub]').dataset.sub)?.sub;
-    if (ref) { t.value = t.dataset.f === 'credits' ? fcr(ref.credits) : ref.name; t.blur(); }
+    if (ref) { t.value = t.dataset.f === 'credits' ? fcr(ref.credits) : t.dataset.f === 'marks' ? (ref.marks == null ? '' : fmk(ref.marks)) : ref.name; t.blur(); }
   }
 });
 
@@ -1385,10 +1435,24 @@ function onEdit(e) {
     if (!v) { t.value = sub.name; return; }
     sub.name = v.slice(0, 80);
   } else if (f === 'credits') {
+    if (e.type !== 'change') return; // commit on Enter/blur so half-typed values never stick
     const v = parseFloat(t.value);
     const ok = t.value.trim() !== '' && v >= 0 && v <= MAX_CREDITS;
-    if (!ok) { if (e.type === 'change') { t.value = fcr(sub.credits); toast(`Credit hours must be between 0 and ${MAX_CREDITS}.`); } return; }
+    if (!ok) { t.value = fcr(sub.credits); toast(`Credit hours must be between 0 and ${MAX_CREDITS}.`); return; }
     sub.credits = v;
+  } else if (f === 'marks') {
+    if (e.type !== 'change') return;
+    const raw = t.value.trim(), v = num(raw);
+    const ok = raw === '' || (v != null && v >= 0 && v <= MAX_MARKS);
+    if (!ok) { t.value = sub.marks == null ? '' : fmk(sub.marks); toast(`Marks must be between 0 and ${MAX_MARKS}.`); return; }
+    sub.marks = raw === '' ? null : v;
+    const k = gradeForMarks(sub.marks);
+    if (k) {                                       // marks decide the grade; clearing marks keeps it
+      sub.grade = k;
+      const row = t.closest('.row'), gs = row.querySelector('[data-f="grade"]');
+      gs.value = k; gs.parentElement.className = `sel ${selTier(k)}`;
+      row.classList.remove('pending');
+    }
   } else if (f === 'grade' || f === 'target') {
     if (e.type !== 'change') return;
     sub[f] = t.value || null;
@@ -1466,15 +1530,15 @@ $('#fill-apply').addEventListener('click', () => {
   const g = $('#fill-grade').value;
   const pm = pmap();
   const pending = state.semesters.flatMap(m => m.subjects).filter(s => !(s.grade != null && pm.has(s.grade)));
-  withUndo(`Set ${pending.length} pending subject${pending.length === 1 ? '' : 's'} to a target of ${g}`, () => {
+  withUndo(`Set ${pending.length} pending subject${pending.length === 1 ? '' : 's'} to a target of ${gradeName(g)}`, () => {
     pending.forEach(s => { s.target = g; });
   });
 });
 function renderFill() {
   const cur = $('#fill-grade').value;
-  $('#fill-grade').innerHTML = state.scale.map(g => `<option value="${esc(g.letter)}">${esc(g.letter)} · ${g.points.toFixed(2)}</option>`).join('');
-  if (cur && state.scale.some(g => g.letter === cur)) $('#fill-grade').value = cur;
-  else if (state.scale.some(g => g.letter === 'B+')) $('#fill-grade').value = 'B+';
+  $('#fill-grade').innerHTML = state.scale.map(g => `<option value="${esc(g.key)}">${esc(g.letter)} · ${g.points.toFixed(2)}</option>`).join('');
+  if (cur && state.scale.some(g => g.key === cur)) $('#fill-grade').value = cur;
+  else if (state.scale.some(g => g.key === 'B+')) $('#fill-grade').value = 'B+';
 }
 
 /* ============================================================ THEME */
@@ -1528,9 +1592,10 @@ $('#import-file').addEventListener('change', e => { const f = e.target.files[0];
 /* ============================================================ SETTINGS (GRADE SCALE) */
 const dlg = $('#settings');
 function scaleRowHTML(g) {
-  const L = esc(g?.letter ?? ''), orig = g ? ` data-orig="${L}"` : '';
-  return `<li class="scale-row">
-    <input class="input sl" value="${L}"${orig} maxlength="4" aria-label="Grade letter" autocomplete="off">
+  const L = esc(g?.letter ?? '');
+  return `<li class="scale-row" data-key="${esc(g?.key ?? '')}">
+    <input class="input sl" value="${L}" maxlength="4" aria-label="Grade letter" autocomplete="off">
+    <input class="input sm" type="number" inputmode="decimal" min="0" max="${MAX_MARKS}" step="0.5" value="${g?.min == null ? '' : fmk(g.min)}" placeholder="–" aria-label="Minimum marks for ${L || 'new grade'}">
     <input class="input sp" type="number" inputmode="decimal" min="0" max="4" step="0.01" value="${g ? g.points.toFixed(2) : ''}" aria-label="Points for ${L || 'new grade'}">
     <button class="icon-btn" type="button" data-rm aria-label="Remove grade ${L || 'row'}">✕</button>
   </li>`;
@@ -1558,31 +1623,34 @@ $('#scale-add').addEventListener('click', () => {
   $('#scale-rows').lastElementChild.querySelector('.sl').focus();
 });
 $('#scale-reset').addEventListener('click', () => {
-  // keep links to existing letters so subjects follow renames where possible
+  // default keys match existing ones where they overlap, so those subjects keep their grade
   $('#scale-rows').innerHTML = DEFAULT_SCALE.map(g => scaleRowHTML(g)).join('');
-  $('#scale-rows').querySelectorAll('.sl').forEach(i => { if (!state.scale.some(g => g.letter === i.value)) i.removeAttribute('data-orig'); });
 });
 $('#scale-save').addEventListener('click', () => {
   const err = $('#scale-err');
-  const rows = [...$('#scale-rows').children].map(li => ({ li, letter: li.querySelector('.sl').value.trim(), raw: li.querySelector('.sp').value, orig: li.querySelector('.sl').dataset.orig }));
+  const rows = [...$('#scale-rows').children].map(li => ({
+    li, key: li.dataset.key || uid(), letter: li.querySelector('.sl').value.trim(),
+    raw: li.querySelector('.sp').value, rawMin: li.querySelector('.sm').value.trim()
+  }));
   const bad = m => { err.textContent = m; err.hidden = false; };
   if (!rows.length) return bad('Keep at least one grade.');
-  const seen = new Set();
+  const mins = new Set();
   for (const r of rows) {
-    const p = parseFloat(r.raw);
+    const p = parseFloat(r.raw), mn = num(r.rawMin);
     if (!r.letter) { r.li.querySelector('.sl').focus(); return bad('Every grade needs a letter.'); }
-    if (seen.has(r.letter)) { r.li.querySelector('.sl').focus(); return bad(`"${r.letter}" appears twice.`); }
     if (!(p >= 0 && p <= 4)) { r.li.querySelector('.sp').focus(); return bad(`Points for "${r.letter}" must be between 0 and 4.00.`); }
-    seen.add(r.letter); r.points = Math.round(p * 100) / 100;
+    if (r.rawMin !== '' && !(mn >= 0 && mn <= MAX_MARKS)) { r.li.querySelector('.sm').focus(); return bad(`Min marks for "${r.letter}" must be between 0 and ${MAX_MARKS}.`); }
+    if (mn != null && mins.has(mn)) { r.li.querySelector('.sm').focus(); return bad(`Two grades start at ${fmk(mn)} marks. Give each a different minimum.`); }
+    if (mn != null) mins.add(mn);
+    r.points = Math.round(p * 100) / 100; r.min = mn;
   }
-  const rename = new Map(rows.filter(r => r.orig).map(r => [r.orig, r.letter]));
-  const removed = state.scale.map(g => g.letter).filter(l => !rename.has(l));
-  const affected = state.semesters.reduce((a, m) => a + m.subjects.filter(s => removed.includes(s.grade)).length, 0);
-  if (affected && !confirm(`${affected} subject${affected === 1 ? ' uses' : 's use'} a grade you removed (${removed.join(', ')}). ${affected === 1 ? 'It' : 'They'} will show as "not in scale" until you pick a new grade. Continue?`)) return;
+  const keep = new Set(rows.map(r => r.key));
+  const removed = state.scale.filter(g => !keep.has(g.key));
+  const removedKeys = new Set(removed.map(g => g.key));
+  const affected = state.semesters.reduce((a, m) => a + m.subjects.filter(s => removedKeys.has(s.grade)).length, 0);
+  if (affected && !confirm(`${affected} subject${affected === 1 ? ' uses' : 's use'} a grade you removed (${removed.map(gradeLabel).join(', ')}). ${affected === 1 ? 'It' : 'They'} will show as "not in scale" until you pick a new grade. Continue?`)) return;
   withUndo('Grade scale saved', () => {
-    const map = l => (l != null && rename.has(l)) ? rename.get(l) : l;
-    state.semesters.forEach(m => m.subjects.forEach(s => { s.grade = map(s.grade); s.target = map(s.target); }));
-    state.scale = rows.map(r => ({ letter: r.letter.slice(0, 4), points: r.points })).sort((a, b) => b.points - a.points);
+    state.scale = rows.map(r => ({ key: r.key, letter: r.letter.slice(0, 4), points: r.points, min: r.min })).sort(byPoints);
   });
   dlg.close();
 });
@@ -1604,12 +1672,12 @@ document.addEventListener('keydown', e => {
 
 /* ============================================================ SAMPLE DATA */
 function loadSample() {
-  const S = (name, credits, grade) => ({ id: uid(), name, credits, grade, target: null });
+  const S = (name, credits, marks = null) => ({ id: uid(), name, credits, marks, grade: gradeForMarks(marks), target: null });
   state.semesters = [
-    { id: uid(), name: 'Year 1 · Sem 1', planned: false, subjects: [S('Engineering Mathematics I', 4, 'A-'), S('Circuit Theory', 4, 'B+'), S('Programming for Engineers', 3, 'A'), S('Engineering Physics', 3, 'B'), S('Technical Communication', 2, 'A')] },
-    { id: uid(), name: 'Year 1 · Sem 2', planned: false, subjects: [S('Engineering Mathematics II', 4, 'B+'), S('Electronic Devices', 4, 'A-'), S('Digital Logic Design', 3, 'A'), S('Electromagnetics', 3, 'B-'), S('Engineering Drawing', 2, 'B+')] },
-    { id: uid(), name: 'Year 2 · Sem 1', planned: false, subjects: [S('Signals & Systems', 4, 'B'), S('Analog Electronics', 4, 'A-'), S('Electrical Machines', 3, 'B+'), S('Microcontrollers', 3, 'A'), S('Probability & Statistics', 3, 'A-')] },
-    { id: uid(), name: 'Year 2 · Sem 2', planned: true, subjects: [S('Control Systems', 4, null), S('Power Systems', 4, null), S('Communication Systems', 3, null), S('Embedded Systems Lab', 2, null), S('Engineering Economics', 3, null)] }
+    { id: uid(), name: 'Year 1 · Sem 1', planned: false, subjects: [S('Engineering Mathematics I', 4, 72), S('Circuit Theory', 4, 66), S('Programming for Engineers', 3, 81), S('Engineering Physics', 3, 61), S('Technical Communication', 2, 76)] },
+    { id: uid(), name: 'Year 1 · Sem 2', planned: false, subjects: [S('Engineering Mathematics II', 4, 67), S('Electronic Devices', 4, 73), S('Digital Logic Design', 3, 79), S('Electromagnetics', 3, 56), S('Engineering Drawing', 2, 65)] },
+    { id: uid(), name: 'Year 2 · Sem 1', planned: false, subjects: [S('Signals & Systems', 4, 62), S('Analog Electronics', 4, 71), S('Electrical Machines', 3, 68), S('Microcontrollers', 3, 84), S('Probability & Statistics', 3, 74)] },
+    { id: uid(), name: 'Year 2 · Sem 2', planned: true, subjects: [S('Control Systems', 4), S('Power Systems', 4), S('Communication Systems', 3), S('Embedded Systems Lab', 2), S('Engineering Economics', 3)] }
   ];
   state.semesters.forEach(m => justAdded.add(m.id));
   commit();
@@ -1690,7 +1758,7 @@ function applyRemote(remote) {
   return true;
 }
 
-const semSig = sems => JSON.stringify(sems.map(m => [m.name, m.subjects.map(s => [s.name, s.credits, s.grade])]));
+const semSig = sems => JSON.stringify(sems.map(m => [m.name, m.subjects.map(s => [s.name, s.credits, s.marks, s.grade])]));
 async function firstSync() {
   setSync('saving');
   let remote;

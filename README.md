@@ -56,7 +56,7 @@ The sign-in library is [supabase-js](https://github.com/supabase/supabase-js) 2.
 ## Features
 
 - Big CGPA hero, latest semester GPA, credit hours earned, and a 0–4 progress ruler with your target marked.
-- Semesters as timeline "chapters", each marked completed or upcoming. Add a subject with name, credits and grade, then press Enter. Blank credits default to 3, and the grade can stay "No grade yet".
+- Semesters as timeline "chapters", each marked completed or upcoming. Add a subject with name, credits and marks (the grade fills itself in) or a grade, then press Enter. Blank credits default to 3, and the grade can stay "No grade yet".
 - Inline editing everywhere. Deleting a subject or semester can be undone (Undo button or Ctrl+Z).
 - The plan: set a target CGPA and see the GPA you need next semester. Credits come from your next upcoming semester, or from an estimate you type in.
 - What-if mode: pick target grades on pending subjects and see your projected CGPA right away. You can also set every pending subject to one grade in a single step.
@@ -64,20 +64,49 @@ The sign-in library is [supabase-js](https://github.com/supabase/supabase-js) 2.
 - Data is saved in `localStorage`, with optional accounts and cloud sync through Supabase. You can export or import a JSON backup.
 - Dark mode, keyboard accessible, respects reduced motion, works at phone width.
 
+## Grading scale
+
+The default is the university scale below. A grade comes from your marks, or you can pick it by hand if you don't have marks.
+
+| Grade | Marks | Grade point | Description |
+|---|---|---|---|
+| A+ | 80–100 | 4.00 | Excellent |
+| A | 75–79 | 3.75 | Excellent |
+| A- | 70–74 | 3.50 | Excellent |
+| B+ | 65–69 | 3.25 | Good |
+| B | 60–64 | 3.00 | Good |
+| B- | 55–59 | 2.75 | Good |
+| C | 50–54 | 2.50 | Satisfactory |
+| C- | 45–49 | 2.25 | Satisfactory |
+| D | 40–44 | 2.00 | Weak |
+| F | 30–39 | 1.50 | Fail |
+| F | 20–29 | 1.00 | Fail |
+| F | 0–19 | 0.00 | Fail |
+
+**Marks:** each subject has a Marks column (out of 100). Type a mark and the grade is filled in from the table. You can still pick a different grade by hand. Clearing the marks keeps the grade. Each semester's box also shows its average marks.
+
+**Upgrading from the old scale:** if your saved data was still on the app's original scale (A = 4.00, A- = 3.67, and so on), it switches to this scale automatically. Existing grades keep their letter, so an A is now worth 3.75. C+ and D+ don't exist on this scale, so subjects with those grades show "not in scale" until you pick a new grade. A scale you had already customised is left alone.
+
 ## Customising the grading scale
 
-**In the app:** click **Grade scale** at the top. Rename letters, change points (0–4.00), add or remove grades, then press **Save scale**.
-If you rename a letter, every subject using it is updated to the new name. If you remove a letter that subjects still use, they show "not in scale" until you choose another grade.
+**In the app:** click **Grade scale** at the top. Each row has a letter, a **Min marks** (the lowest mark for that grade) and points (0–4.00). Add, remove or edit rows, then press **Save scale**.
 
-**In code (to change the default for new users):** edit `DEFAULT_SCALE` near the top of the `<script>` in `index.html`:
+- Letters can repeat, like the three F bands.
+- Renaming a letter updates every subject that uses it.
+- If you remove a row that subjects still use, they show "not in scale" until you choose another grade.
+- Leave **Min marks** blank for a grade you only want to pick by hand.
+- **Reset to default** brings back the table above.
+
+**In code (to change the default for new users):** edit `DEFAULT_SCALE` near the top of the `<script>` in `index.html`. Each entry is `[key, letter, points, min marks]`. The key is an internal ID that subjects point to, so it must be unique even when letters repeat:
 
 ```js
 const DEFAULT_SCALE = [
-  ['A+', 4.00], ['A', 4.00], ['A-', 3.67], /* ... */ ['F', 0.00]
-].map(([letter, points]) => ({ letter, points }));
+  ['A+', 'A+', 4.00, 80], ['A', 'A', 3.75, 75], /* ... */
+  ['F-30', 'F', 1.50, 30], ['F-20', 'F', 1.00, 20], ['F', 'F', 0.00, 0]
+].map(([key, letter, points, min]) => ({ key, letter, points, min }));
 ```
 
-Grade chips are coloured by points: 3.67+ mint, 2.67+ yellow, 1.67+ pink, below that plain. Change the cut-offs in `tierOf()`.
+Grade chips are coloured by points: 3.50+ mint, 2.75+ yellow, 2.00+ pink, below that plain. Change the cut-offs in `tierOf()`.
 
 ## Customising colours
 
